@@ -687,51 +687,82 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const [ahRecords, setAhRecords] = useState<AhCounterRecord[]>(SEED_AH_RECORDS);
   const [notifications, setNotifications] = useState<InAppNotification[]>(SEED_NOTIFICATIONS);
 
-  // 1. Hydrate all persistent data from localStorage on client mount
-  useEffect(() => {
+  // Helper to sync mutations to Supabase in the background
+  const syncToCloud = async (action: string, payload: any) => {
     try {
-      if (typeof window !== "undefined") {
-        const savedMeetings = localStorage.getItem("terra_meetings");
-        if (savedMeetings) setMeetings(JSON.parse(savedMeetings));
+      await fetch("/api/data/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, payload }),
+      });
+    } catch {}
+  };
 
-        const savedRoles = localStorage.getItem("terra_meeting_roles");
-        if (savedRoles) setMeetingRoles(JSON.parse(savedRoles));
+  // 1. Hydrate all persistent data from localStorage and fetch live updates from Supabase
+  useEffect(() => {
+    async function loadData() {
+      try {
+        if (typeof window !== "undefined") {
+          const savedMeetings = localStorage.getItem("terra_meetings");
+          if (savedMeetings) setMeetings(JSON.parse(savedMeetings));
 
-        const savedAgenda = localStorage.getItem("terra_agenda_items");
-        if (savedAgenda) setAgendaItems(JSON.parse(savedAgenda));
+          const savedRoles = localStorage.getItem("terra_meeting_roles");
+          if (savedRoles) setMeetingRoles(JSON.parse(savedRoles));
 
-        const savedContests = localStorage.getItem("terra_contests");
-        if (savedContests) setContests(JSON.parse(savedContests));
+          const savedAgenda = localStorage.getItem("terra_agenda_items");
+          if (savedAgenda) setAgendaItems(JSON.parse(savedAgenda));
 
-        const savedEvents = localStorage.getItem("terra_events");
-        if (savedEvents) setEvents(JSON.parse(savedEvents));
+          const savedContests = localStorage.getItem("terra_contests");
+          if (savedContests) setContests(JSON.parse(savedContests));
 
-        const savedAlbums = localStorage.getItem("terra_media_albums");
-        if (savedAlbums) setMediaAlbums(JSON.parse(savedAlbums));
+          const savedEvents = localStorage.getItem("terra_events");
+          if (savedEvents) setEvents(JSON.parse(savedEvents));
 
-        const savedSpeechRecords = localStorage.getItem("terra_speech_records");
-        if (savedSpeechRecords) setSpeechRecords(JSON.parse(savedSpeechRecords));
+          const savedAlbums = localStorage.getItem("terra_media_albums");
+          if (savedAlbums) setMediaAlbums(JSON.parse(savedAlbums));
 
-        const savedAnnouncements = localStorage.getItem("terra_announcements");
-        if (savedAnnouncements) setAnnouncements(JSON.parse(savedAnnouncements));
+          const savedSpeechRecords = localStorage.getItem("terra_speech_records");
+          if (savedSpeechRecords) setSpeechRecords(JSON.parse(savedSpeechRecords));
 
-        const savedTimerLogs = localStorage.getItem("terra_timer_logs");
-        if (savedTimerLogs) setTimerLogs(JSON.parse(savedTimerLogs));
+          const savedAnnouncements = localStorage.getItem("terra_announcements");
+          if (savedAnnouncements) setAnnouncements(JSON.parse(savedAnnouncements));
 
-        const savedAhRecords = localStorage.getItem("terra_ah_records");
-        if (savedAhRecords) setAhRecords(JSON.parse(savedAhRecords));
+          const savedTimerLogs = localStorage.getItem("terra_timer_logs");
+          if (savedTimerLogs) setTimerLogs(JSON.parse(savedTimerLogs));
 
-        const savedUsers = localStorage.getItem("terra_users");
-        if (savedUsers) setUsers(JSON.parse(savedUsers));
+          const savedAhRecords = localStorage.getItem("terra_ah_records");
+          if (savedAhRecords) setAhRecords(JSON.parse(savedAhRecords));
 
-        const savedNotifs = localStorage.getItem("terra_notifications");
-        if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+          const savedUsers = localStorage.getItem("terra_users");
+          if (savedUsers) setUsers(JSON.parse(savedUsers));
+
+          const savedNotifs = localStorage.getItem("terra_notifications");
+          if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+        }
+      } catch (e) {
+        console.warn("Could not hydrate from localStorage:", e);
+      } finally {
+        setIsHydrated(true);
       }
-    } catch (e) {
-      console.warn("Could not hydrate from localStorage:", e);
-    } finally {
-      setIsHydrated(true);
+
+      // Fetch live cloud state from Supabase
+      try {
+        const res = await fetch("/api/data/fetch-all");
+        if (res.ok) {
+          const body = await res.json();
+          if (body.hasSupabase && body.data) {
+            if (body.data.meetings) setMeetings(body.data.meetings);
+            if (body.data.meetingRoles) setMeetingRoles(body.data.meetingRoles);
+            if (body.data.agendaItems) setAgendaItems(body.data.agendaItems);
+            if (body.data.contests) setContests(body.data.contests);
+            if (body.data.events) setEvents(body.data.events);
+            if (body.data.users) setUsers(body.data.users);
+          }
+        }
+      } catch {}
     }
+
+    loadData();
   }, []);
 
   // 2. Persist state changes back to localStorage whenever modified
@@ -1146,6 +1177,18 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       )
     );
 
+    syncToCloud("update_meeting_role", {
+      roleId,
+      updates: {
+        assignedUserId: currentUser.id,
+        assignedUserName: currentUser.name,
+        assignedUserAvatar: currentUser.avatar,
+        speechTitle: speechTitle || role.speechTitle || "Prepared Speech",
+        speechPathwayProject: pathwayProject || role.speechPathwayProject,
+        isLocked: true,
+      },
+    });
+
     const newNotif: InAppNotification = {
       id: `notif-${Date.now()}`,
       title: "Role Confirmed",
@@ -1175,6 +1218,18 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           : r
       )
     );
+
+    syncToCloud("update_meeting_role", {
+      roleId,
+      updates: {
+        assignedUserId: null,
+        assignedUserName: null,
+        assignedUserAvatar: null,
+        speechTitle: null,
+        speechPathwayProject: null,
+        isLocked: false,
+      },
+    });
 
     const newNotif: InAppNotification = {
       id: `notif-${Date.now()}`,
@@ -1209,6 +1264,18 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           : r
       )
     );
+
+    syncToCloud("update_meeting_role", {
+      roleId,
+      updates: {
+        assignedUserId: targetUser.id,
+        assignedUserName: targetUser.name,
+        assignedUserAvatar: targetUser.avatar,
+        speechTitle: speechTitle,
+        speechPathwayProject: pathwayProject,
+        isLocked: true,
+      },
+    });
   };
 
   // Create Meeting (Admin only)
@@ -1262,6 +1329,12 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       { id: `role-${meetingId}-ahcounter`, meetingId, roleName: "Ah-Counter", category: "functionary", allocatedMinutes: 5, assignedUserId: null, isLocked: false },
     ];
     setMeetingRoles((prev) => [...standardRoles, ...prev]);
+
+    syncToCloud("create_meeting", {
+      meeting: created,
+      roles: standardRoles,
+      agenda: [],
+    });
 
     return created;
   };
@@ -1404,6 +1477,8 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       )
     );
 
+    syncToCloud("add_contestant", { participant: newParticipant });
+
     const notif: InAppNotification = {
       id: `notif-${Date.now()}`,
       title: "Contestant Enrolled",
@@ -1436,6 +1511,9 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         return { ...c, participants: filtered };
       })
     );
+
+    syncToCloud("remove_contestant", { participantId });
+
     return true;
   };
 
@@ -1475,6 +1553,10 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           : c
       )
     );
+
+    syncToCloud("update_contest", {
+      contest: { id: contestId, ...updatedFields },
+    });
 
     const newNotif: InAppNotification = {
       id: `notif-${Date.now()}`,
@@ -1535,6 +1617,14 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         return { ...ev, rsvps: updatedRsvps };
       })
     );
+
+    syncToCloud("rsvp_event", {
+      eventId,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userAvatar: currentUser.avatar,
+      status,
+    });
   };
 
   // Create Event / ExComm Meeting (ExComm Members & Admin)
@@ -1566,6 +1656,8 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       ],
     };
     setEvents((prev) => [newEvent, ...prev]);
+
+    syncToCloud("create_event", { event: newEvent });
 
     const newNotif: InAppNotification = {
       id: `notif-${Date.now()}`,
@@ -1621,6 +1713,8 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
 
     setContests((prev) => [newContest, ...prev]);
 
+    syncToCloud("create_contest", { contest: newContest });
+
     const newNotif: InAppNotification = {
       id: `notif-${Date.now()}`,
       title: "New Contest Scheduled to Host",
@@ -1661,20 +1755,28 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
+    const updatedAssignment = {
+      ...role,
+      ...assignment,
+      isConfirmed: assignment.isConfirmed !== undefined ? assignment.isConfirmed : true,
+    };
+
     setContests((prev) =>
       prev.map((c) => {
         if (c.id !== contestId) return c;
         const updatedRoles = (c.roleAssignments || []).map((r) => {
           if (r.roleKey !== roleKey) return r;
-          return {
-            ...r,
-            ...assignment,
-            isConfirmed: assignment.isConfirmed !== undefined ? assignment.isConfirmed : true,
-          };
+          return updatedAssignment;
         });
         return { ...c, roleAssignments: updatedRoles };
       })
     );
+
+    syncToCloud("update_contest_role", {
+      contestId,
+      roleKey,
+      assignment: updatedAssignment,
+    });
 
     const updatedName = assignment.isGuest ? assignment.guestName : assignment.userName;
     if (updatedName) {
