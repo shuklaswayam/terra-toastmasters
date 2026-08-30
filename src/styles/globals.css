@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --terra-bg-canvas: #FBFBFD;
+    --terra-bg-surface: #FFFFFF;
+    --terra-bg-subtle: #F4F4F6;
+    --terra-text-primary: #18181B;
+    --terra-text-secondary: #71717A;
+    --terra-text-tertiary: #A1A1AA;
+    --terra-border-hairline: rgba(0, 0, 0, 0.08);
+    --terra-border-strong: rgba(0, 0, 0, 0.16);
+  }
+
+  .dark {
+    --terra-bg-canvas: #0C0C0E;
+    --terra-bg-surface: #161618;
+    --terra-bg-subtle: #202024;
+    --terra-text-primary: #F4F4F6;
+    --terra-text-secondary: #A1A1AA;
+    --terra-text-tertiary: #71717A;
+    --terra-border-hairline: rgba(255, 255, 255, 0.08);
+    --terra-border-strong: rgba(255, 255, 255, 0.18);
+  }
+
+  body {
+    background-color: var(--terra-bg-canvas);
+    color: var(--terra-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+}
+
+/* Apple Frosted Glass Utilities */
+.terra-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--terra-border-hairline);
+}
+
+.dark .terra-glass {
+  background: rgba(22, 22, 24, 0.82);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--terra-border-hairline);
+}
+
+.terra-glass-card {
+  background: var(--terra-bg-surface);
+  border: 1px solid var(--terra-border-hairline);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.dark .terra-glass-card {
+  background: var(--terra-bg-surface);
+  border: 1px solid var(--terra-border-hairline);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Monospace Tabular Numbers */
+.font-tabular {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
