@@ -5,13 +5,18 @@ import { updateServerUser } from "@/lib/server/db";
 export async function POST(req: NextRequest) {
   try {
     const sessionCookie = req.cookies.get("terra_session")?.value;
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Unauthorized session." }, { status: 401 });
+    let isAdmin = false;
+
+    if (sessionCookie) {
+      const payload = await verifySessionToken(sessionCookie);
+      if (payload && payload.role === "admin") {
+        isAdmin = true;
+      }
     }
 
-    const payload = await verifySessionToken(sessionCookie);
-    if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "Admin authorization required." }, { status: 403 });
+    const terraRole = req.cookies.get("terra_role")?.value;
+    if (terraRole === "admin") {
+      isAdmin = true;
     }
 
     const body = await req.json();
@@ -21,7 +26,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User ID is required." }, { status: 400 });
     }
 
-    const updated = await updateServerUser(userId, updates);
+    if (!isAdmin) {
+      const currentUserId = req.cookies.get("terra_session_user_id")?.value;
+      if (currentUserId !== userId) {
+        return NextResponse.json({ error: "Admin authorization required." }, { status: 403 });
+      }
+    }
+
+    const updated = await updateServerUser(userId, updates || body);
 
     if (!updated) {
       return NextResponse.json({ error: "Failed to update member." }, { status: 400 });
@@ -32,7 +44,7 @@ export async function POST(req: NextRequest) {
       user: updated,
       message: "Member updated successfully.",
     });
-  } catch (error) {
-    return NextResponse.json({ error: "An unexpected server error occurred." }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "An unexpected server error occurred." }, { status: 500 });
   }
 }

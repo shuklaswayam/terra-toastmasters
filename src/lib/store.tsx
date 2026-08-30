@@ -914,7 +914,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
 
       return { success: false, error: "Unexpected response from authentication server." };
     } catch {
-      // Fallback
+      // Offline / Local fallback verification
       const cleanInput = usernameOrEmail.trim().toLowerCase();
       const found = users.find(
         (u) =>
@@ -926,7 +926,20 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         return { success: false, error: "No member found with this Username or Email." };
       }
 
-      if (password !== "terra@2026" && password.trim() !== found.username.toLowerCase()) {
+      let customPass: string | undefined;
+      try {
+        if (typeof window !== "undefined") {
+          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+          customPass = savedPasses[found.id];
+        }
+      } catch {}
+
+      const isValidPassword =
+        (customPass && password.trim() === customPass.trim()) ||
+        password === "terra@2026" ||
+        password.trim() === found.username.toLowerCase();
+
+      if (!isValidPassword) {
         return { success: false, error: "Incorrect password. Please verify your credentials." };
       }
 
@@ -986,6 +999,16 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       rolesCompleted: 0,
     };
 
+    if (newMember.password) {
+      try {
+        if (typeof window !== "undefined") {
+          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+          savedPasses[newMember.id] = newMember.password;
+          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch("/api/auth/admin/add-member", {
         method: "POST",
@@ -1021,6 +1044,16 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const updateMember = async (userId: string, updates: Partial<User> & { password?: string }): Promise<boolean> => {
     if (currentUser?.role !== "admin" && currentUser?.id !== userId) return false;
 
+    if (updates.password && updates.password.trim()) {
+      try {
+        if (typeof window !== "undefined") {
+          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+          savedPasses[userId] = updates.password.trim();
+          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch("/api/auth/admin/update-member", {
         method: "POST",
@@ -1053,11 +1086,21 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const updateProfile = async (updates: Partial<User> & { password?: string }): Promise<boolean> => {
     if (!currentUser) return false;
 
+    if (updates.password && updates.password.trim()) {
+      try {
+        if (typeof window !== "undefined") {
+          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+          savedPasses[currentUser.id] = updates.password.trim();
+          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch("/api/auth/update-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ ...updates, userId: currentUser.id }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1069,7 +1112,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           const notif: InAppNotification = {
             id: `notif-${Date.now()}`,
             title: "Profile Updated",
-            message: "Your profile information has been saved successfully.",
+            message: "Your profile information and password have been saved successfully.",
             type: "success",
             timestamp: "Just now",
             isRead: false,
@@ -1088,7 +1131,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     const notif: InAppNotification = {
       id: `notif-${Date.now()}`,
       title: "Profile Updated",
-      message: "Your profile information has been saved successfully.",
+      message: "Your profile information and password have been saved successfully.",
       type: "success",
       timestamp: "Just now",
       isRead: false,

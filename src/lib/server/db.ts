@@ -374,32 +374,33 @@ export async function getUserByUsernameOrEmail(identifier: string): Promise<Serv
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .or(`username.ilike.${clean},email.ilike.${clean}`)
-        .limit(1)
-        .single();
+        .or(`username.ilike.${clean},email.ilike.${clean}`);
 
-      if (data && !error) {
+      if (data && data.length > 0 && !error) {
+        const u = data[0];
         return {
-          id: data.id,
-          username: data.username,
-          email: data.email,
-          passwordHash: data.password_hash,
-          name: data.name,
-          role: data.role as UserRole,
-          avatar: data.avatar,
-          executiveTitle: data.executive_title,
-          phone: data.phone,
-          bio: data.bio,
-          joinedDate: data.joined_date,
-          speechesDelivered: data.speeches_delivered,
-          rolesCompleted: data.roles_completed,
-          pathwayName: data.pathway_name,
-          pathwayLevel: data.pathway_level,
-          memberId: data.member_id,
-          awardsWon: data.awards_won,
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          passwordHash: u.password_hash,
+          name: u.name,
+          role: u.role as UserRole,
+          avatar: u.avatar,
+          executiveTitle: u.executive_title,
+          phone: u.phone || "",
+          bio: u.bio || "",
+          joinedDate: u.joined_date || "",
+          speechesDelivered: u.speeches_delivered || 0,
+          rolesCompleted: u.roles_completed || 0,
+          pathwayName: u.pathway_name || "",
+          pathwayLevel: u.pathway_level || 0,
+          memberId: u.member_id || "",
+          awardsWon: u.awards_won || 0,
         };
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Supabase lookup error:", e);
+    }
   }
 
   return serverUsers.find(
@@ -415,32 +416,33 @@ export async function getUserById(id: string): Promise<ServerUser | undefined> {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("id", id)
-        .limit(1)
-        .single();
+        .eq("id", id);
 
-      if (data && !error) {
+      if (data && data.length > 0 && !error) {
+        const u = data[0];
         return {
-          id: data.id,
-          username: data.username,
-          email: data.email,
-          passwordHash: data.password_hash,
-          name: data.name,
-          role: data.role as UserRole,
-          avatar: data.avatar,
-          executiveTitle: data.executive_title,
-          phone: data.phone,
-          bio: data.bio,
-          joinedDate: data.joined_date,
-          speechesDelivered: data.speeches_delivered,
-          rolesCompleted: data.roles_completed,
-          pathwayName: data.pathway_name,
-          pathwayLevel: data.pathway_level,
-          memberId: data.member_id,
-          awardsWon: data.awards_won,
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          passwordHash: u.password_hash,
+          name: u.name,
+          role: u.role as UserRole,
+          avatar: u.avatar,
+          executiveTitle: u.executive_title,
+          phone: u.phone || "",
+          bio: u.bio || "",
+          joinedDate: u.joined_date || "",
+          speechesDelivered: u.speeches_delivered || 0,
+          rolesCompleted: u.roles_completed || 0,
+          pathwayName: u.pathway_name || "",
+          pathwayLevel: u.pathway_level || 0,
+          memberId: u.member_id || "",
+          awardsWon: u.awards_won || 0,
         };
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Supabase lookup by ID error:", e);
+    }
   }
 
   return serverUsers.find((u) => u.id === id);
@@ -497,8 +499,13 @@ export async function updateServerUser(
       if (updates.awardsWon !== undefined) supabaseUpdates.awards_won = updates.awardsWon;
       if (newPasswordHash) supabaseUpdates.password_hash = newPasswordHash;
 
-      await supabase.from("users").update(supabaseUpdates).eq("id", userId);
-    } catch {}
+      const { error } = await supabase.from("users").update(supabaseUpdates).eq("id", userId);
+      if (error) {
+        console.error("Supabase user update error:", error);
+      }
+    } catch (e) {
+      console.warn("Supabase user update exception:", e);
+    }
   }
 
   const updated = user || (await getUserById(userId));
