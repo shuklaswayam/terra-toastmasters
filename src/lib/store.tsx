@@ -656,8 +656,8 @@ const TerraStoreContext = createContext<TerraStoreContextType | null>(null);
 
 export function TerraStoreProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>(SEED_USERS);
-  const [currentUser, setCurrentUser] = useState<User | null>(SEED_USERS[0]);
-  const [isAuthLoaded, setIsAuthLoaded] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoaded, setIsAuthLoaded] = useState(false);
 
   const [meetings, setMeetings] = useState<Meeting[]>(SEED_MEETINGS);
   const [meetingRoles, setMeetingRoles] = useState<MeetingRole[]>(SEED_MEETING_ROLES);

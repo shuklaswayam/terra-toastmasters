@@ -28,6 +28,7 @@ import {
   Trophy,
   User,
   ChevronRight,
+  LogIn,
 } from "lucide-react";
 import { InMeetingAssistant } from "../in-meeting/InMeetingAssistant";
 
@@ -90,7 +91,7 @@ export function Navbar() {
   };
 
   const navLinks = [
-    { name: "Dashboard", href: "/portal" },
+    { name: currentUser ? "Dashboard" : "Home", href: currentUser ? "/portal" : "/" },
     { name: "Meetings", href: "/meetings" },
     { name: "Contests", href: "/contests" },
     { name: "Events", href: "/events" },
@@ -131,7 +132,7 @@ export function Navbar() {
           {/* Brand Logo & Main Nav */}
           <div className="flex items-center gap-6">
             <Link
-              href="/portal"
+              href={currentUser ? "/portal" : "/"}
               className="flex items-center gap-2 font-display text-xl font-bold tracking-tight hover:opacity-80 transition-opacity"
             >
               <span>Terra</span>
@@ -143,7 +144,7 @@ export function Navbar() {
               {navLinks.map((link) => {
                 const isActive =
                   pathname === link.href ||
-                  (link.href !== "/portal" && pathname.startsWith(link.href));
+                  (link.href !== "/portal" && link.href !== "/" && pathname.startsWith(link.href));
                 return (
                   <Link
                     key={link.href}
@@ -519,8 +520,8 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Authenticated User Menu */}
-            {currentUser && (
+            {/* Authenticated User Menu or Guest Sign In */}
+            {currentUser ? (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -582,6 +583,14 @@ export function Navbar() {
                   </div>
                 )}
               </div>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#18181B] dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
             )}
           </div>
         </div>
