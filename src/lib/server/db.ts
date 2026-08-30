@@ -363,14 +363,86 @@ const serverUsers: ServerUser[] = [
   },
 ];
 
-export function getUserByUsernameOrEmail(identifier: string): ServerUser | undefined {
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export async function getUserByUsernameOrEmail(identifier: string): Promise<ServerUser | undefined> {
   const clean = identifier.trim().toLowerCase();
+  const supabase = createServerSupabaseClient();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .or(`username.ilike.${clean},email.ilike.${clean}`)
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        return {
+          id: data.id,
+          username: data.username,
+          email: data.email,
+          passwordHash: data.password_hash,
+          name: data.name,
+          role: data.role as UserRole,
+          avatar: data.avatar,
+          executiveTitle: data.executive_title,
+          phone: data.phone,
+          bio: data.bio,
+          joinedDate: data.joined_date,
+          speechesDelivered: data.speeches_delivered,
+          rolesCompleted: data.roles_completed,
+          pathwayName: data.pathway_name,
+          pathwayLevel: data.pathway_level,
+          memberId: data.member_id,
+          awardsWon: data.awards_won,
+        };
+      }
+    } catch {}
+  }
+
   return serverUsers.find(
     (u) => u.username.toLowerCase() === clean || u.email.toLowerCase() === clean
   );
 }
 
-export function getUserById(id: string): ServerUser | undefined {
+export async function getUserById(id: string): Promise<ServerUser | undefined> {
+  const supabase = createServerSupabaseClient();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", id)
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        return {
+          id: data.id,
+          username: data.username,
+          email: data.email,
+          passwordHash: data.password_hash,
+          name: data.name,
+          role: data.role as UserRole,
+          avatar: data.avatar,
+          executiveTitle: data.executive_title,
+          phone: data.phone,
+          bio: data.bio,
+          joinedDate: data.joined_date,
+          speechesDelivered: data.speeches_delivered,
+          rolesCompleted: data.roles_completed,
+          pathwayName: data.pathway_name,
+          pathwayLevel: data.pathway_level,
+          memberId: data.member_id,
+          awardsWon: data.awards_won,
+        };
+      }
+    } catch {}
+  }
+
   return serverUsers.find((u) => u.id === id);
 }
 

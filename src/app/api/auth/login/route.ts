@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const { usernameOrEmail, password } = parsed.data;
 
     // 3. Lookup User in Server DB
-    const user = getUserByUsernameOrEmail(usernameOrEmail);
+    const user = await getUserByUsernameOrEmail(usernameOrEmail);
     if (!user) {
       const failInfo = recordFailedAttempt(ip);
       return NextResponse.json(

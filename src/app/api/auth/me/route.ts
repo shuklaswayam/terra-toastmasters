@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const user = getUserById(payload.userId);
+    const user = await getUserById(payload.userId);
     if (!user) {
       return NextResponse.json(
         { error: "User associated with this session no longer exists." },
