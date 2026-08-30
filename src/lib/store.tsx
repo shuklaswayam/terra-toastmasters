@@ -673,6 +673,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const [users, setUsers] = useState<User[]>(SEED_USERS);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const [meetings, setMeetings] = useState<Meeting[]>(SEED_MEETINGS);
   const [meetingRoles, setMeetingRoles] = useState<MeetingRole[]>(SEED_MEETING_ROLES);
@@ -685,6 +686,138 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const [timerLogs, setTimerLogs] = useState<TimerLogEntry[]>(SEED_TIMER_LOGS);
   const [ahRecords, setAhRecords] = useState<AhCounterRecord[]>(SEED_AH_RECORDS);
   const [notifications, setNotifications] = useState<InAppNotification[]>(SEED_NOTIFICATIONS);
+
+  // 1. Hydrate all persistent data from localStorage on client mount
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const savedMeetings = localStorage.getItem("terra_meetings");
+        if (savedMeetings) setMeetings(JSON.parse(savedMeetings));
+
+        const savedRoles = localStorage.getItem("terra_meeting_roles");
+        if (savedRoles) setMeetingRoles(JSON.parse(savedRoles));
+
+        const savedAgenda = localStorage.getItem("terra_agenda_items");
+        if (savedAgenda) setAgendaItems(JSON.parse(savedAgenda));
+
+        const savedContests = localStorage.getItem("terra_contests");
+        if (savedContests) setContests(JSON.parse(savedContests));
+
+        const savedEvents = localStorage.getItem("terra_events");
+        if (savedEvents) setEvents(JSON.parse(savedEvents));
+
+        const savedAlbums = localStorage.getItem("terra_media_albums");
+        if (savedAlbums) setMediaAlbums(JSON.parse(savedAlbums));
+
+        const savedSpeechRecords = localStorage.getItem("terra_speech_records");
+        if (savedSpeechRecords) setSpeechRecords(JSON.parse(savedSpeechRecords));
+
+        const savedAnnouncements = localStorage.getItem("terra_announcements");
+        if (savedAnnouncements) setAnnouncements(JSON.parse(savedAnnouncements));
+
+        const savedTimerLogs = localStorage.getItem("terra_timer_logs");
+        if (savedTimerLogs) setTimerLogs(JSON.parse(savedTimerLogs));
+
+        const savedAhRecords = localStorage.getItem("terra_ah_records");
+        if (savedAhRecords) setAhRecords(JSON.parse(savedAhRecords));
+
+        const savedUsers = localStorage.getItem("terra_users");
+        if (savedUsers) setUsers(JSON.parse(savedUsers));
+
+        const savedNotifs = localStorage.getItem("terra_notifications");
+        if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+      }
+    } catch (e) {
+      console.warn("Could not hydrate from localStorage:", e);
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  // 2. Persist state changes back to localStorage whenever modified
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_meetings", JSON.stringify(meetings));
+    } catch {}
+  }, [meetings, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_meeting_roles", JSON.stringify(meetingRoles));
+    } catch {}
+  }, [meetingRoles, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_agenda_items", JSON.stringify(agendaItems));
+    } catch {}
+  }, [agendaItems, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_contests", JSON.stringify(contests));
+    } catch {}
+  }, [contests, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_events", JSON.stringify(events));
+    } catch {}
+  }, [events, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_media_albums", JSON.stringify(mediaAlbums));
+    } catch {}
+  }, [mediaAlbums, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_speech_records", JSON.stringify(speechRecords));
+    } catch {}
+  }, [speechRecords, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_announcements", JSON.stringify(announcements));
+    } catch {}
+  }, [announcements, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_timer_logs", JSON.stringify(timerLogs));
+    } catch {}
+  }, [timerLogs, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_ah_records", JSON.stringify(ahRecords));
+    } catch {}
+  }, [ahRecords, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_users", JSON.stringify(users));
+    } catch {}
+  }, [users, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    try {
+      localStorage.setItem("terra_notifications", JSON.stringify(notifications));
+    } catch {}
+  }, [notifications, isHydrated]);
 
   // Initialize Auth from server session (/api/auth/me) with cookie fallback
   useEffect(() => {
