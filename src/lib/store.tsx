@@ -603,10 +603,10 @@ interface TerraStoreContextType {
     bio?: string;
     username?: string;
     password?: string;
-  }) => User;
-  updateMember: (userId: string, updates: Partial<User>) => void;
-  updateProfile: (updates: Partial<User>) => void;
-  deleteMember: (userId: string) => void;
+  }) => Promise<User>;
+  updateMember: (userId: string, updates: Partial<User> & { password?: string }) => Promise<boolean>;
+  updateProfile: (updates: Partial<User> & { password?: string }) => Promise<boolean>;
+  deleteMember: (userId: string) => Promise<boolean>;
   generateCredentials: (name: string) => { username: string; password: string };
   addSpeechRecord: (speechData: Omit<SpeechRecord, "id">) => SpeechRecord;
   deleteSpeechRecord: (speechId: string) => void;
@@ -774,7 +774,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   // Add Member (Admin exclusive)
-  const addMember = (memberData: {
+  const addMember = async (memberData: {
     name: string;
     email: string;
     role: "member" | "officer" | "admin";
@@ -783,7 +783,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     bio?: string;
     username?: string;
     password?: string;
-  }): User => {
+  }): Promise<User> => {
     if (currentUser?.role !== "admin") {
       throw new Error("Only Admin (TM Swayam) has permission to add members.");
     }
@@ -799,13 +799,28 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       name: cleanName,
       role: memberData.role,
       executiveTitle: memberData.executiveTitle || (memberData.role === "officer" ? "Club Officer" : undefined),
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-      phone: memberData.phone || "+91 98765 00000",
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}`,
+      phone: memberData.phone || "",
       bio: memberData.bio || "Active member of Terra Toastmasters.",
       joinedDate: new Date().toISOString().split("T")[0],
       speechesDelivered: 0,
       rolesCompleted: 0,
     };
+
+    try {
+      const res = await fetch("/api/auth/admin/add-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newMember),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUsers((prev) => [...prev, data.user]);
+          return data.user;
+        }
+      }
+    } catch {}
 
     setUsers((prev) => [...prev, newMember]);
 
@@ -824,19 +839,68 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   };
 
   // Update Member (Admin exclusive)
-  const updateMember = (userId: string, updates: Partial<User>) => {
-    if (currentUser?.role !== "admin" && currentUser?.id !== userId) return;
+  const updateMember = async (userId: string, updates: Partial<User> & { password?: string }): Promise<boolean> => {
+    if (currentUser?.role !== "admin" && currentUser?.id !== userId) return false;
+
+    try {
+      const res = await fetch("/api/auth/admin/update-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, updates }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...data.user } : u)));
+          if (currentUser && currentUser.id === userId) {
+            setCurrentUser((prev) => (prev ? { ...prev, ...data.user } : null));
+          }
+          return true;
+        }
+      }
+    } catch {}
+
+    // Local fallback update
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, ...updates } : u))
     );
     if (currentUser && currentUser.id === userId) {
       setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
     }
+    return true;
   };
 
-  // Update Profile (Any logged in user can update their own profile)
-  const updateProfile = (updates: Partial<User>) => {
-    if (!currentUser) return;
+  // Update Profile (Any logged in user can update their own profile and password)
+  const updateProfile = async (updates: Partial<User> & { password?: string }): Promise<boolean> => {
+    if (!currentUser) return false;
+
+    try {
+      const res = await fetch("/api/auth/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setCurrentUser(data.user);
+          setUsers((prev) =>
+            prev.map((u) => (u.id === currentUser.id ? data.user : u))
+          );
+          const notif: InAppNotification = {
+            id: `notif-${Date.now()}`,
+            title: "Profile Updated",
+            message: "Your profile information has been saved successfully.",
+            type: "success",
+            timestamp: "Just now",
+            isRead: false,
+          };
+          setNotifications((prev) => [notif, ...prev]);
+          return true;
+        }
+      }
+    } catch {}
+
     const updated = { ...currentUser, ...updates };
     setCurrentUser(updated);
     setUsers((prev) =>
@@ -851,6 +915,23 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       isRead: false,
     };
     setNotifications((prev) => [notif, ...prev]);
+    return true;
+  };
+
+  // Delete Member (Admin exclusive)
+  const deleteMember = async (userId: string): Promise<boolean> => {
+    if (currentUser?.role !== "admin") return false;
+
+    try {
+      await fetch("/api/auth/admin/delete-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+    } catch {}
+
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    return true;
   };
 
   // Add Speech Record
@@ -883,12 +964,6 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   // Delete Speech Record
   const deleteSpeechRecord = (speechId: string) => {
     setSpeechRecords((prev) => prev.filter((s) => s.id !== speechId));
-  };
-
-  // Delete Member (Admin exclusive)
-  const deleteMember = (userId: string) => {
-    if (currentUser?.role !== "admin") return;
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
   // Claim Role

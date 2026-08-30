@@ -446,6 +446,126 @@ export async function getUserById(id: string): Promise<ServerUser | undefined> {
   return serverUsers.find((u) => u.id === id);
 }
 
+import { hashPassword } from "@/lib/server/auth";
+
+export async function updateServerUser(
+  userId: string,
+  updates: Partial<User> & { password?: string }
+): Promise<User | null> {
+  const user = serverUsers.find((u) => u.id === userId);
+  let newPasswordHash: string | undefined;
+
+  if (updates.password && updates.password.trim()) {
+    newPasswordHash = await hashPassword(updates.password.trim());
+  }
+
+  if (user) {
+    if (updates.name !== undefined) user.name = updates.name;
+    if (updates.email !== undefined) user.email = updates.email;
+    if (updates.phone !== undefined) user.phone = updates.phone;
+    if (updates.bio !== undefined) user.bio = updates.bio;
+    if (updates.avatar !== undefined) user.avatar = updates.avatar;
+    if (updates.role !== undefined) user.role = updates.role;
+    if (updates.executiveTitle !== undefined) user.executiveTitle = updates.executiveTitle;
+    if (updates.joinedDate !== undefined) user.joinedDate = updates.joinedDate;
+    if (updates.pathwayName !== undefined) user.pathwayName = updates.pathwayName;
+    if (updates.pathwayLevel !== undefined) user.pathwayLevel = updates.pathwayLevel;
+    if (updates.speechesDelivered !== undefined) user.speechesDelivered = updates.speechesDelivered;
+    if (updates.rolesCompleted !== undefined) user.rolesCompleted = updates.rolesCompleted;
+    if (updates.memberId !== undefined) user.memberId = updates.memberId;
+    if (updates.awardsWon !== undefined) user.awardsWon = updates.awardsWon;
+    if (newPasswordHash) user.passwordHash = newPasswordHash;
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (supabase) {
+    try {
+      const supabaseUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) supabaseUpdates.name = updates.name;
+      if (updates.email !== undefined) supabaseUpdates.email = updates.email;
+      if (updates.phone !== undefined) supabaseUpdates.phone = updates.phone;
+      if (updates.bio !== undefined) supabaseUpdates.bio = updates.bio;
+      if (updates.avatar !== undefined) supabaseUpdates.avatar = updates.avatar;
+      if (updates.role !== undefined) supabaseUpdates.role = updates.role;
+      if (updates.executiveTitle !== undefined) supabaseUpdates.executive_title = updates.executiveTitle;
+      if (updates.joinedDate !== undefined) supabaseUpdates.joined_date = updates.joinedDate;
+      if (updates.pathwayName !== undefined) supabaseUpdates.pathway_name = updates.pathwayName;
+      if (updates.pathwayLevel !== undefined) supabaseUpdates.pathway_level = updates.pathwayLevel;
+      if (updates.speechesDelivered !== undefined) supabaseUpdates.speeches_delivered = updates.speechesDelivered;
+      if (updates.rolesCompleted !== undefined) supabaseUpdates.roles_completed = updates.rolesCompleted;
+      if (updates.memberId !== undefined) supabaseUpdates.member_id = updates.memberId;
+      if (updates.awardsWon !== undefined) supabaseUpdates.awards_won = updates.awardsWon;
+      if (newPasswordHash) supabaseUpdates.password_hash = newPasswordHash;
+
+      await supabase.from("users").update(supabaseUpdates).eq("id", userId);
+    } catch {}
+  }
+
+  const updated = user || (await getUserById(userId));
+  if (!updated) return null;
+  const { passwordHash: _, ...publicUser } = updated;
+  return publicUser;
+}
+
+export async function addServerUser(
+  user: User & { password?: string }
+): Promise<User> {
+  const passwordHash = user.password && user.password.trim()
+    ? await hashPassword(user.password.trim())
+    : DEFAULT_SEED_PASSWORD_HASH;
+
+  const serverUser: ServerUser = {
+    ...user,
+    passwordHash,
+  };
+
+  serverUsers.push(serverUser);
+
+  const supabase = createServerSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from("users").insert({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        password_hash: passwordHash,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        phone: user.phone || "",
+        bio: user.bio || "",
+        joined_date: user.joinedDate || "",
+        executive_title: user.executiveTitle || null,
+        pathway_name: user.pathwayName || "",
+        pathway_level: user.pathwayLevel || 1,
+        speeches_delivered: user.speechesDelivered || 0,
+        roles_completed: user.rolesCompleted || 0,
+        member_id: user.memberId || "",
+        awards_won: user.awardsWon || 0,
+      });
+    } catch {}
+  }
+
+  const { passwordHash: _, ...publicUser } = serverUser;
+  return publicUser;
+}
+
+export async function deleteServerUser(userId: string): Promise<boolean> {
+  const index = serverUsers.findIndex((u) => u.id === userId);
+  if (index !== -1) {
+    serverUsers.splice(index, 1);
+  }
+
+  const supabase = createServerSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from("users").delete().eq("id", userId);
+    } catch {}
+  }
+
+  return true;
+}
+
 export function getAllPublicUsers(): User[] {
   return serverUsers.map(({ passwordHash, ...user }) => user);
 }

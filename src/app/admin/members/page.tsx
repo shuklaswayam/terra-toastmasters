@@ -81,12 +81,12 @@ export default function AdminMemberManagementPage() {
     }
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addName.trim()) return;
 
-    addMember({
-      name: addName,
+    await addMember({
+      name: addName.trim(),
       email: addEmail || `${addUsername || "member"}@terra.club`,
       role: addRole,
       executiveTitle: addRole !== "member" ? addExecutiveTitle : undefined,
@@ -108,11 +108,11 @@ export default function AdminMemberManagementPage() {
     setAddPassword("");
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
-    const updates: Partial<User> = {
+    const updates: Partial<User> & { password?: string } = {
       name: editName.trim() || editingUser.name,
       email: editEmail.trim() || editingUser.email,
       phone: editPhone.trim(),
@@ -129,13 +129,14 @@ export default function AdminMemberManagementPage() {
       updates.password = editPassword.trim();
     }
 
-    updateMember(editingUser.id, updates);
+    await updateMember(editingUser.id, updates);
     setEditingUser(null);
+    setEditPassword("");
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingUser) return;
-    deleteMember(deletingUser.id);
+    await deleteMember(deletingUser.id);
     setDeletingUser(null);
   };
 

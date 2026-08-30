@@ -61,6 +61,7 @@ export default function MemberProfilePage() {
   const [editRolesCompleted, setEditRolesCompleted] = useState(currentUser?.rolesCompleted || 0);
   const [editMemberId, setEditMemberId] = useState(currentUser?.memberId || "");
   const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || "");
+  const [editPassword, setEditPassword] = useState("");
 
   // New Speech Form State
   const [speechMeetingNumber, setSpeechMeetingNumber] = useState<number>(1);
@@ -86,10 +87,11 @@ export default function MemberProfilePage() {
     setEditRolesCompleted(currentUser.rolesCompleted || 0);
     setEditMemberId(currentUser.memberId || "");
     setEditAvatar(currentUser.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.name)}`);
+    setEditPassword("");
     setShowEditModal(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setEditError(null);
 
@@ -111,7 +113,7 @@ export default function MemberProfilePage() {
       return;
     }
 
-    updateProfile({
+    const updates: Partial<typeof currentUser> & { password?: string } = {
       name: sanitizeText(editName) || currentUser.name,
       phone: editPhone.trim(),
       joinedDate: editJoinedDate.trim(),
@@ -122,8 +124,19 @@ export default function MemberProfilePage() {
       rolesCompleted: Number(editRolesCompleted) || 0,
       memberId: sanitizeText(editMemberId),
       avatar: editAvatar.trim() || currentUser.avatar,
-    });
+    };
+
+    if (editPassword.trim()) {
+      if (editPassword.trim().length < 6) {
+        setEditError("New password must be at least 6 characters.");
+        return;
+      }
+      updates.password = editPassword.trim();
+    }
+
+    await updateProfile(updates);
     setShowEditModal(false);
+    setEditPassword("");
   };
 
   const handleCreateSpeechSubmit = (e: React.FormEvent) => {
@@ -544,6 +557,21 @@ export default function MemberProfilePage() {
                   value={editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
                   placeholder="https://..."
+                  className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-terra-text-secondary">Update Password</label>
+                  <span className="text-[10px] text-terra-text-tertiary">Leave blank to keep current</span>
+                </div>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Enter new password (min 6 characters)"
                   className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40"
                 />
               </div>
