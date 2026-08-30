@@ -91,7 +91,7 @@ export function Navbar() {
   };
 
   const navLinks = [
-    { name: currentUser ? "Dashboard" : "Home", href: currentUser ? "/portal" : "/" },
+    { name: "Dashboard", href: "/portal" },
     { name: "Meetings", href: "/meetings" },
     { name: "Contests", href: "/contests" },
     { name: "Events", href: "/events" },

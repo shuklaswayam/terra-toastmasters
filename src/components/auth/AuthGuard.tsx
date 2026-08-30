@@ -10,25 +10,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const isLoginPage = pathname === "/auth/login";
-  const isProtectedPath =
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/portal") ||
-    pathname === "/gallery/upload";
 
   useEffect(() => {
     if (!isAuthLoaded) return;
 
-    if (!isAuthenticated && isProtectedPath) {
-      router.replace(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
+    if (!isAuthenticated && !isLoginPage) {
+      const redirectUrl = pathname === "/" ? "/auth/login" : `/auth/login?redirect=${encodeURIComponent(pathname)}`;
+      router.replace(redirectUrl);
     } else if (isAuthenticated && isLoginPage) {
       router.replace("/portal");
     }
-  }, [isAuthenticated, isAuthLoaded, isProtectedPath, isLoginPage, pathname, router]);
+  }, [isAuthenticated, isAuthLoaded, isLoginPage, pathname, router]);
 
-  // If loading session state and attempting to access a protected path
-  if (!isAuthLoaded && isProtectedPath) {
+  // If loading session state
+  if (!isAuthLoaded && !isLoginPage) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-terra-canvas">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-terra-amber border-t-transparent animate-spin" />
           <span className="text-xs font-medium text-terra-text-tertiary">Connecting to Terra...</span>
@@ -37,13 +34,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If not authenticated and trying to access protected route
-  if (!isAuthenticated && isProtectedPath) {
+  // If not authenticated and trying to access any page other than login
+  if (!isAuthenticated && !isLoginPage) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-terra-canvas">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-terra-amber border-t-transparent animate-spin" />
-          <span className="text-xs font-medium text-terra-text-tertiary">Redirecting to login...</span>
+          <span className="text-xs font-medium text-terra-text-tertiary">Authenticating...</span>
         </div>
       </div>
     );

@@ -34,11 +34,11 @@ export function MobileNav() {
   const isExCommOrAdmin = currentUser?.role === "admin" || currentUser?.role === "officer";
 
   const tabs = [
-    { name: currentUser ? "Dashboard" : "Home", href: currentUser ? "/portal" : "/", icon: Home },
+    { name: "Home", href: "/portal", icon: Home },
     { name: "Meetings", href: "/meetings", icon: Calendar },
     { name: "Tools", href: "#tools", icon: Wrench, isAction: true },
     { name: "Gallery", href: "/gallery", icon: ImageIcon },
-    { name: currentUser ? "Profile" : "Sign In", href: currentUser ? "/portal/profile" : "/auth/login", icon: User },
+    { name: "Profile", href: "/portal/profile", icon: User },
   ];
 
   return (
