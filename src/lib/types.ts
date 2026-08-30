@@ -81,6 +81,8 @@ export interface ContestParticipant {
   speakingOrder?: number;
   placement?: 1 | 2 | 3;
   registeredAt: string;
+  isGuest?: boolean;
+  guestClub?: string;
 }
 
 export type ContestRoleKey =

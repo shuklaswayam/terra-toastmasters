@@ -22,8 +22,10 @@ import {
   Globe,
   Trash2,
   Share2,
+  Mic,
+  AlertCircle,
 } from "lucide-react";
-import { ContestCategory, ContestRoleAssignment, ContestRoleKey, ContestStatus } from "@/lib/types";
+import { ContestCategory, ContestParticipant, ContestRoleAssignment, ContestRoleKey, ContestStatus } from "@/lib/types";
 
 export default function ContestDetailPage() {
   const params = useParams();
@@ -35,6 +37,9 @@ export default function ContestDetailPage() {
     currentUser,
     users,
     registerContest,
+    addContestant,
+    removeContestant,
+    updateContestant,
     updateContest,
     randomizeContestOrder,
     updateContestRoleAssignment,
@@ -48,6 +53,17 @@ export default function ContestDetailPage() {
   const [showRegModal, setShowRegModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [speechTitle, setSpeechTitle] = useState("");
+
+  // Contestant Management State
+  const [showAddContestantModal, setShowAddContestantModal] = useState(false);
+  const [editingContestant, setEditingContestant] = useState<ContestParticipant | null>(null);
+  const [contestantMode, setContestantMode] = useState<"club" | "guest">("club");
+  const [contestantMemberId, setContestantMemberId] = useState("");
+  const [contestantGuestName, setContestantGuestName] = useState("");
+  const [contestantGuestClub, setContestantGuestClub] = useState("");
+  const [contestantSpeechTitle, setContestantSpeechTitle] = useState("");
+  const [contestantSpeakingOrder, setContestantSpeakingOrder] = useState<number>(1);
+  const [contestantError, setContestantError] = useState<string | null>(null);
 
   // Role Assignment Modal State
   const [editingRole, setEditingRole] = useState<ContestRoleAssignment | null>(null);
@@ -108,6 +124,74 @@ export default function ContestDetailPage() {
     registerContest(contest.id, speechTitle);
     setShowRegModal(false);
     setSpeechTitle("");
+  };
+
+  const handleOpenAddContestant = () => {
+    setContestantError(null);
+    setEditingContestant(null);
+    setContestantMode("club");
+    setContestantMemberId("");
+    setContestantGuestName("");
+    setContestantGuestClub("");
+    setContestantSpeechTitle("");
+    setContestantSpeakingOrder(contest.participants.length + 1);
+    setShowAddContestantModal(true);
+  };
+
+  const handleOpenEditContestant = (participant: ContestParticipant) => {
+    setContestantError(null);
+    setEditingContestant(participant);
+    setContestantSpeechTitle(participant.speechTitle || "");
+    setContestantSpeakingOrder(participant.speakingOrder || 1);
+    setShowAddContestantModal(true);
+  };
+
+  const handleSaveContestant = (e: React.FormEvent) => {
+    e.preventDefault();
+    setContestantError(null);
+
+    if (editingContestant) {
+      updateContestant(contest.id, editingContestant.id, {
+        speechTitle: speechTitle.trim() || contestantSpeechTitle.trim() || "Contest Speech",
+        speakingOrder: Number(contestantSpeakingOrder) || 1,
+      });
+      setShowAddContestantModal(false);
+      setEditingContestant(null);
+    } else {
+      if (contestantMode === "club") {
+        if (!contestantMemberId) {
+          setContestantError("Please select a club member from the roster.");
+          return;
+        }
+        if (contest.participants.some((p) => p.userId === contestantMemberId)) {
+          setContestantError("This member is already registered as a contestant.");
+          return;
+        }
+        addContestant(contest.id, {
+          userId: contestantMemberId,
+          speechTitle: contestantSpeechTitle.trim() || "Contest Speech",
+          speakingOrder: Number(contestantSpeakingOrder) || (contest.participants.length + 1),
+        });
+      } else {
+        if (!contestantGuestName.trim()) {
+          setContestantError("Please enter the guest speaker's full name.");
+          return;
+        }
+        addContestant(contest.id, {
+          isGuest: true,
+          userName: contestantGuestName.trim(),
+          guestClub: contestantGuestClub.trim() || "Visiting Toastmaster",
+          speechTitle: contestantSpeechTitle.trim() || "Contest Speech",
+          speakingOrder: Number(contestantSpeakingOrder) || (contest.participants.length + 1),
+        });
+      }
+      setShowAddContestantModal(false);
+    }
+
+    setContestantMemberId("");
+    setContestantGuestName("");
+    setContestantGuestClub("");
+    setContestantSpeechTitle("");
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -616,50 +700,136 @@ export default function ContestDetailPage() {
       {/* ========================================================================= */}
       {activeSection === "contestants" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-black/[0.04] dark:border-white/[0.04]">
-            <h2 className="font-display text-xl font-bold tracking-tight">
-              Official Contestant Roster & Speaking Order
-            </h2>
-            <span className="text-xs font-mono text-terra-text-tertiary">
-              {contest.participants.length} Candidates
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/[0.04] dark:border-white/[0.04]">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-terra-amber/10 text-terra-amber flex items-center justify-center">
+                <Mic className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold tracking-tight">
+                  Official Contestant Roster & Speaking Order
+                </h2>
+                <p className="text-xs text-terra-text-secondary">
+                  {contest.participants.length} / {contest.maxContestants} enrolled speakers
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {(isAdmin || isCC || isCJ) && contest.participants.length > 1 && (
+                <button
+                  onClick={() => randomizeContestOrder(contest.id)}
+                  className="px-3 py-1.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] text-xs font-semibold text-terra-text-primary flex items-center gap-1.5 transition-all"
+                  title="Draw of lots: Randomize speaking order"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-terra-amber" />
+                  <span>Draw of Lots</span>
+                </button>
+              )}
+
+              {(isAdmin || isCC || isCJ) && (
+                <button
+                  onClick={handleOpenAddContestant}
+                  className="px-4 py-2 rounded-xl bg-terra-amber text-white text-xs font-semibold hover:bg-amber-600 active:scale-95 transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Contestant</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {contest.participants.map((p, idx) => (
-              <div
-                key={p.id}
-                className="p-5 rounded-3xl terra-glass-card flex items-center justify-between gap-4"
-              >
-                <div className="flex items-center gap-3.5">
-                  <span className="w-8 h-8 rounded-full bg-terra-amber/10 text-terra-amber font-display font-bold text-sm flex items-center justify-center border border-terra-amber/20">
-                    {p.speakingOrder || idx + 1}
-                  </span>
+            {contest.participants
+              .sort((a, b) => (a.speakingOrder || 0) - (b.speakingOrder || 0))
+              .map((p, idx) => {
+                const canManage = isAdmin || isCC || isCJ;
 
-                  <img
-                    src={p.userAvatar}
-                    alt={p.userName}
-                    className="w-11 h-11 rounded-2xl object-cover border border-black/10"
-                  />
+                return (
+                  <div
+                    key={p.id}
+                    className="p-5 rounded-3xl terra-glass-card flex items-center justify-between gap-4 group hover:border-terra-amber/40 transition-all"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span className="w-8 h-8 rounded-xl bg-terra-amber/15 text-terra-amber font-display font-bold text-sm flex items-center justify-center border border-terra-amber/20 shrink-0">
+                        #{p.speakingOrder || idx + 1}
+                      </span>
 
-                  <div>
-                    <h4 className="font-display font-bold text-sm">{p.userName}</h4>
-                    <p className="text-xs text-terra-text-secondary italic">
-                      "{p.speechTitle}"
-                    </p>
+                      <img
+                        src={p.userAvatar}
+                        alt={p.userName}
+                        className="w-11 h-11 rounded-2xl object-cover border border-black/10 shrink-0"
+                      />
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-display font-bold text-sm truncate">{p.userName}</h4>
+                          {p.isGuest && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-700 text-[9px] font-semibold">
+                              Guest
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-terra-text-secondary italic truncate">
+                          &ldquo;{p.speechTitle || "Contest Speech"}&rdquo;
+                        </p>
+                        {p.isGuest && p.guestClub && (
+                          <p className="text-[10px] text-terra-text-tertiary truncate">
+                            {p.guestClub}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {canManage ? (
+                        <>
+                          <button
+                            onClick={() => handleOpenEditContestant(p)}
+                            className="p-2 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-terra-text-tertiary hover:text-terra-text-primary transition-colors"
+                            title="Edit details / speaking order"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => removeContestant(contest.id, p.id)}
+                            className="p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 text-terra-text-tertiary hover:text-rose-600 transition-colors"
+                            title="Remove contestant"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold">
+                          Confirmed
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-
-                <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold">
-                  Confirmed
-                </span>
-              </div>
-            ))}
+                );
+              })}
 
             {contest.participants.length === 0 && (
-              <p className="col-span-2 text-center py-10 text-xs text-terra-text-tertiary">
-                No contestants have registered yet. Be the first to enter!
-              </p>
+              <div className="col-span-2 py-12 text-center space-y-3 p-6 rounded-3xl terra-glass-card">
+                <div className="w-12 h-12 rounded-2xl bg-terra-amber/10 text-terra-amber flex items-center justify-center mx-auto">
+                  <Mic className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display font-bold text-base">No Contestants Enrolled Yet</h3>
+                  <p className="text-xs text-terra-text-secondary max-w-sm mx-auto">
+                    Contestants can self-register or be added directly by the Contest Chair, Chief Judge, or Admin.
+                  </p>
+                </div>
+                {(isAdmin || isCC || isCJ) && (
+                  <button
+                    onClick={handleOpenAddContestant}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-terra-amber text-white text-xs font-semibold hover:bg-amber-600 transition-all shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add First Contestant</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -984,6 +1154,189 @@ export default function ContestDetailPage() {
                   className="w-1/2 py-2 rounded-xl bg-terra-amber text-white text-xs font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm"
                 >
                   Confirm Entry
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ADD / EDIT CONTESTANT MODAL */}
+      {/* ========================================================================= */}
+      {showAddContestantModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-terra-amber/15 text-terra-amber flex items-center justify-center font-bold">
+                  <Mic className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base">
+                    {editingContestant ? "Edit Contestant Details" : "Enroll Contestant / Speaker"}
+                  </h3>
+                  <p className="text-[11px] text-terra-text-secondary">
+                    {contest.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddContestantModal(false);
+                  setEditingContestant(null);
+                }}
+                className="p-1 rounded-full text-terra-text-tertiary hover:text-terra-text-primary"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {contestantError && (
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{contestantError}</span>
+              </div>
+            )}
+
+            {!editingContestant && (
+              <div className="grid grid-cols-2 gap-2 p-1 bg-black/[0.03] dark:bg-white/[0.04] rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setContestantMode("club")}
+                  className={`py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    contestantMode === "club"
+                      ? "bg-white text-black shadow-sm dark:bg-[#202024] dark:text-white"
+                      : "text-terra-text-secondary hover:text-terra-text-primary"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Club Member</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContestantMode("guest")}
+                  className={`py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    contestantMode === "guest"
+                      ? "bg-white text-black shadow-sm dark:bg-[#202024] dark:text-white"
+                      : "text-terra-text-secondary hover:text-terra-text-primary"
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Visiting Guest Speaker</span>
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveContestant} className="space-y-4">
+              {!editingContestant ? (
+                contestantMode === "club" ? (
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-semibold text-terra-text-secondary">
+                      Select Member from Terra Roster *
+                    </label>
+                    <select
+                      value={contestantMemberId}
+                      onChange={(e) => setContestantMemberId(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-medium"
+                    >
+                      <option value="">-- Choose Member --</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.executiveTitle || u.role}) • {u.pathwayName || "Pathways"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-left">
+                    <div>
+                      <label className="text-xs font-semibold text-terra-text-secondary block mb-1">
+                        Guest Speaker Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={contestantGuestName}
+                        onChange={(e) => setContestantGuestName(e.target.value)}
+                        placeholder="e.g. TM Sneha Reddy"
+                        required
+                        className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-terra-text-secondary block mb-1">
+                        Home Club / District
+                      </label>
+                      <input
+                        type="text"
+                        value={contestantGuestClub}
+                        onChange={(e) => setContestantGuestClub(e.target.value)}
+                        placeholder="e.g. Bangalore Toastmasters Club (District 92)"
+                        className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="p-3 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] flex items-center gap-3">
+                  <img
+                    src={editingContestant.userAvatar}
+                    alt={editingContestant.userName}
+                    className="w-10 h-10 rounded-xl object-cover"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-terra-text-primary">{editingContestant.userName}</p>
+                    <p className="text-[10px] text-terra-text-secondary">Enrolled Contestant</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3 text-left">
+                <div className="col-span-2 space-y-1">
+                  <label className="text-xs font-semibold text-terra-text-secondary">
+                    Speech Title / Topic
+                  </label>
+                  <input
+                    type="text"
+                    value={contestantSpeechTitle}
+                    onChange={(e) => setContestantSpeechTitle(e.target.value)}
+                    placeholder="e.g. The Art of Listening"
+                    className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-terra-text-secondary">
+                    Speaking #
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={contestantSpeakingOrder}
+                    onChange={(e) => setContestantSpeakingOrder(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddContestantModal(false);
+                    setEditingContestant(null);
+                  }}
+                  className="w-1/2 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-xs font-semibold hover:bg-black/[0.08]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-terra-amber text-white text-xs font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm"
+                >
+                  {editingContestant ? "Save Changes" : "Enroll Speaker"}
                 </button>
               </div>
             </form>

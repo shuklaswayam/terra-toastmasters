@@ -7,6 +7,7 @@ import {
   MeetingRole,
   AgendaItem,
   Contest,
+  ContestParticipant,
   ContestCategory,
   ContestRoleKey,
   ContestRoleAssignment,
@@ -619,6 +620,20 @@ interface TerraStoreContextType {
   reorderAgenda: (meetingId: string, newAgenda: AgendaItem[]) => void;
   updateAgendaDuration: (agendaItemId: string, durationMinutes: number) => void;
   registerContest: (contestId: string, speechTitle: string) => boolean;
+  addContestant: (
+    contestId: string,
+    contestantData: {
+      userId?: string;
+      userName?: string;
+      userAvatar?: string;
+      isGuest?: boolean;
+      guestClub?: string;
+      speechTitle?: string;
+      speakingOrder?: number;
+    }
+  ) => boolean;
+  removeContestant: (contestId: string, participantId: string) => boolean;
+  updateContestant: (contestId: string, participantId: string, updates: Partial<ContestParticipant>) => boolean;
   createContest: (contestData: Partial<Contest>) => Contest;
   updateContest: (contestId: string, updatedFields: Partial<Contest>) => void;
   updateContestRoleAssignment: (
@@ -1173,14 +1188,14 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     );
   };
 
-  // Register for Contest
+  // Register for Contest (Self candidate registration)
   const registerContest = (contestId: string, speechTitle: string): boolean => {
     if (!currentUser) return false;
     const contest = contests.find((c) => c.id === contestId);
     if (!contest) return false;
     if (contest.participants.some((p) => p.userId === currentUser.id)) return false;
 
-    const newParticipant = {
+    const newParticipant: ContestParticipant = {
       id: `cp-${Date.now()}`,
       contestId,
       userId: currentUser.id,
@@ -1197,6 +1212,122 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           ? { ...c, participants: [...c.participants, newParticipant] }
           : c
       )
+    );
+    return true;
+  };
+
+  // Add Contestant (Admin, Contest Chair, or Chief Judge)
+  const addContestant = (
+    contestId: string,
+    contestantData: {
+      userId?: string;
+      userName?: string;
+      userAvatar?: string;
+      isGuest?: boolean;
+      guestClub?: string;
+      speechTitle?: string;
+      speakingOrder?: number;
+    }
+  ): boolean => {
+    const contest = contests.find((c) => c.id === contestId);
+    if (!contest) return false;
+
+    const isAdmin = currentUser?.role === "admin";
+    const isCC = currentUser?.id === contest.chairId;
+    const isCJ = currentUser?.id === contest.chiefJudgeId;
+    if (!isAdmin && !isCC && !isCJ) return false;
+
+    const memberUser = contestantData.userId ? users.find((u) => u.id === contestantData.userId) : null;
+    const isGuest = contestantData.isGuest || !memberUser;
+
+    const name = isGuest
+      ? (contestantData.userName || "Guest Speaker")
+      : (memberUser?.name || "Contestant");
+    const avatar = isGuest
+      ? (contestantData.userAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`)
+      : (memberUser?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`);
+
+    const newParticipant: ContestParticipant = {
+      id: `cp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      contestId,
+      userId: contestantData.userId || `guest-${Date.now()}`,
+      userName: name,
+      userAvatar: avatar,
+      speechTitle: contestantData.speechTitle || "Contest Speech",
+      speakingOrder: contestantData.speakingOrder || contest.participants.length + 1,
+      registeredAt: new Date().toISOString().split("T")[0],
+      isGuest,
+      guestClub: contestantData.guestClub,
+    };
+
+    setContests((prev) =>
+      prev.map((c) =>
+        c.id === contestId
+          ? {
+              ...c,
+              participants: [...c.participants, newParticipant],
+            }
+          : c
+      )
+    );
+
+    const notif: InAppNotification = {
+      id: `notif-${Date.now()}`,
+      title: "Contestant Enrolled",
+      message: `${name} has been added as a contestant to ${contest.title}.`,
+      type: "success",
+      timestamp: "Just now",
+      isRead: false,
+      linkUrl: `/contests/${contestId}`,
+    };
+    setNotifications((prev) => [notif, ...prev]);
+    return true;
+  };
+
+  // Remove Contestant (Admin, CC, or CJ)
+  const removeContestant = (contestId: string, participantId: string): boolean => {
+    const contest = contests.find((c) => c.id === contestId);
+    if (!contest) return false;
+
+    const isAdmin = currentUser?.role === "admin";
+    const isCC = currentUser?.id === contest.chairId;
+    const isCJ = currentUser?.id === contest.chiefJudgeId;
+    if (!isAdmin && !isCC && !isCJ) return false;
+
+    setContests((prev) =>
+      prev.map((c) => {
+        if (c.id !== contestId) return c;
+        const filtered = c.participants
+          .filter((p) => p.id !== participantId)
+          .map((p, idx) => ({ ...p, speakingOrder: idx + 1 }));
+        return { ...c, participants: filtered };
+      })
+    );
+    return true;
+  };
+
+  // Update Contestant
+  const updateContestant = (
+    contestId: string,
+    participantId: string,
+    updates: Partial<ContestParticipant>
+  ): boolean => {
+    const contest = contests.find((c) => c.id === contestId);
+    if (!contest) return false;
+
+    const isAdmin = currentUser?.role === "admin";
+    const isCC = currentUser?.id === contest.chairId;
+    const isCJ = currentUser?.id === contest.chiefJudgeId;
+    if (!isAdmin && !isCC && !isCJ) return false;
+
+    setContests((prev) =>
+      prev.map((c) => {
+        if (c.id !== contestId) return c;
+        const updatedParticipants = c.participants.map((p) =>
+          p.id === participantId ? { ...p, ...updates } : p
+        );
+        return { ...c, participants: updatedParticipants };
+      })
     );
     return true;
   };
@@ -1224,9 +1355,16 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     setNotifications((prev) => [newNotif, ...prev]);
   };
 
-  // Randomize Contest Speaking Order (Admin action)
+  // Randomize Contest Speaking Order (Admin, CC, or CJ action)
   const randomizeContestOrder = (contestId: string) => {
-    if (currentUser?.role !== "admin") return;
+    const contest = contests.find((c) => c.id === contestId);
+    if (!contest) return;
+
+    const isAdmin = currentUser?.role === "admin";
+    const isCC = currentUser?.id === contest.chairId;
+    const isCJ = currentUser?.id === contest.chiefJudgeId;
+    if (!isAdmin && !isCC && !isCJ) return;
+
     setContests((prev) =>
       prev.map((c) => {
         if (c.id !== contestId) return c;
@@ -1677,6 +1815,9 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         reorderAgenda,
         updateAgendaDuration,
         registerContest,
+        addContestant,
+        removeContestant,
+        updateContestant,
         createContest,
         updateContest,
         updateContestRoleAssignment,
