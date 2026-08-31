@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserByUsernameOrEmail, updateServerUser } from "@/lib/server/db";
+import { verifySessionToken } from "@/lib/server/auth";
 
 const resetPasswordSchema = z.object({
   usernameOrEmail: z.string().min(1, "Username or email is required"),
@@ -9,6 +10,29 @@ const resetPasswordSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Verify Admin Permissions (Only Admin can reset member passwords)
+    const sessionCookie = req.cookies.get("terra_session")?.value;
+    let isAdmin = false;
+
+    if (sessionCookie) {
+      const payload = await verifySessionToken(sessionCookie);
+      if (payload && payload.role === "admin") {
+        isAdmin = true;
+      }
+    }
+
+    const terraRole = req.cookies.get("terra_role")?.value;
+    if (terraRole === "admin") {
+      isAdmin = true;
+    }
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "Access denied. Only Club Admin (TM Swayam) has authorization to reset member passwords." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = resetPasswordSchema.safeParse(body);
 
@@ -41,11 +65,11 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
-      message: `Password for ${user.name} has been updated successfully.`,
+      message: `Password for ${user.name} has been reset successfully by Admin.`,
       user: updated,
     });
 
-    // Set persistent password cookie as an additional fallback
+    // Set persistent password cookie
     const isProduction = process.env.NODE_ENV === "production";
     response.cookies.set(`terra_pwd_${user.id}`, encodeURIComponent(newPassword), {
       httpOnly: true,
