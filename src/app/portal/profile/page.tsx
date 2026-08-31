@@ -43,13 +43,21 @@ import { memberProfileSchema, speechRecordSchema, sanitizeText } from "@/lib/val
 import { AlertCircle } from "lucide-react";
 
 export default function MemberProfilePage() {
-  const { currentUser, speechRecords, updateProfile, resetPassword, addSpeechRecord, deleteSpeechRecord } =
+  const { currentUser, speechRecords, updateProfile, addSpeechRecord, deleteSpeechRecord } =
     useTerraStore();
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showAddSpeechModal, setShowAddSpeechModal] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [speechError, setSpeechError] = useState<string | null>(null);
+
+  // Change Password Form State
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Edit Profile Form State
   const [editName, setEditName] = useState(currentUser?.name || "");
@@ -127,18 +135,49 @@ export default function MemberProfilePage() {
       avatar: editAvatar.trim() || currentUser.avatar,
     };
 
-    if (currentUser.role === "admin" && editPassword.trim()) {
+    if (editPassword.trim()) {
       if (editPassword.trim().length < 6) {
         setEditError("New password must be at least 6 characters.");
         return;
       }
       updates.password = editPassword.trim();
-      await resetPassword(currentUser.username, editPassword.trim());
     }
 
     await updateProfile(updates);
     setShowEditModal(false);
     setEditPassword("");
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError(null);
+    setChangePasswordSuccess(null);
+
+    if (newPassword.trim().length < 6) {
+      setChangePasswordError("New password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setChangePasswordError("Passwords do not match. Please re-enter.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    const success = await updateProfile({ password: newPassword.trim() });
+    setIsChangingPassword(false);
+
+    if (success) {
+      setChangePasswordSuccess("Password updated successfully! Your new credentials are now active.");
+      setTimeout(() => {
+        setShowChangePasswordModal(false);
+        setNewPassword("");
+        setConfirmPassword("");
+        setChangePasswordSuccess(null);
+      }, 1800);
+    } else {
+      setChangePasswordError("Failed to update password. Please try again.");
+    }
   };
 
   const handleCreateSpeechSubmit = (e: React.FormEvent) => {
@@ -256,13 +295,28 @@ export default function MemberProfilePage() {
             </div>
           </div>
 
-          <button
-            onClick={handleOpenEdit}
-            className="px-4 py-2 rounded-2xl bg-[#18181B] dark:bg-white text-white dark:text-black font-semibold text-xs hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 shadow-sm shrink-0"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>Edit Profile</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setChangePasswordError(null);
+                setChangePasswordSuccess(null);
+                setNewPassword("");
+                setConfirmPassword("");
+                setShowChangePasswordModal(true);
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-terra-text-primary font-semibold text-xs transition-all flex items-center gap-1.5"
+            >
+              <Key className="w-3.5 h-3.5 text-terra-amber" />
+              <span>Change Password</span>
+            </button>
+            <button
+              onClick={handleOpenEdit}
+              className="px-4 py-2 rounded-2xl bg-[#18181B] dark:bg-white text-white dark:text-black font-semibold text-xs hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit Profile</span>
+            </button>
+          </div>
         </div>
 
         {/* Aggregate Stats Bar */}
@@ -564,29 +618,19 @@ export default function MemberProfilePage() {
               </div>
 
               {/* Password Management */}
-              {currentUser.role === "admin" ? (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="font-semibold text-terra-text-secondary">Update Admin Password</label>
-                    <span className="text-[10px] text-terra-text-tertiary">Leave blank to keep current</span>
-                  </div>
-                  <input
-                    type="password"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Enter new password (min 6 characters)"
-                    className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
-                  />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-terra-text-secondary">Update Account Password</label>
+                  <span className="text-[10px] text-terra-text-tertiary">Leave blank to keep current</span>
                 </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between text-xs">
-                  <div>
-                    <span className="font-semibold text-terra-text-secondary block">Password & Security</span>
-                    <span className="text-[11px] text-terra-text-tertiary">Managed by Club Admin (TM Swayam)</span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-terra-amber">Contact Admin to Reset</span>
-                </div>
-              )}
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Enter new password (min 6 characters)"
+                  className="w-full px-3 py-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                />
+              </div>
 
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.06]">
@@ -750,6 +794,93 @@ export default function MemberProfilePage() {
                   className="w-1/2 py-2 rounded-xl bg-terra-amber text-white font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm"
                 >
                   Archive Speech
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] shadow-2xl p-6 space-y-4 text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-terra-amber/10 text-terra-amber flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base">Change Password</h3>
+                  <p className="text-[11px] text-terra-text-secondary">Update your member sign-in credentials</p>
+                </div>
+              </div>
+              <button onClick={() => setShowChangePasswordModal(false)}>
+                <X className="w-4 h-4 text-terra-text-tertiary" />
+              </button>
+            </div>
+
+            {changePasswordError && (
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{changePasswordError}</span>
+              </div>
+            )}
+
+            {changePasswordSuccess && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{changePasswordSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-terra-text-secondary">New Password *</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  required
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-terra-text-secondary">Confirm New Password *</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your new password"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] font-semibold hover:bg-black/[0.08]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="w-1/2 py-2.5 rounded-xl bg-terra-amber text-white font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  {isChangingPassword ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Update Password</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -6,17 +6,11 @@ export async function POST(req: NextRequest) {
   try {
     const sessionCookie = req.cookies.get("terra_session")?.value;
     let userId: string | null = null;
-    let role: "admin" | "officer" | "member" = "member";
-    let email: string = "";
-    let name: string = "";
 
     if (sessionCookie) {
       const payload = await verifySessionToken(sessionCookie);
       if (payload) {
         userId = payload.userId;
-        role = payload.role;
-        email = payload.email;
-        name = payload.name;
       }
     }
 
@@ -31,6 +25,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized session." }, { status: 401 });
     }
 
+    if (body.password && typeof body.password === "string" && body.password.trim().length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
+    }
+
     const updated = await updateServerUser(userId, body);
 
     if (!updated) {
@@ -43,10 +41,10 @@ export async function POST(req: NextRequest) {
       message: "Profile and credentials updated successfully.",
     });
 
-    // If password was changed or session refreshed, issue updated JWT cookie
     const isProduction = process.env.NODE_ENV === "production";
     const SEVEN_DAYS = 7 * 24 * 60 * 60;
 
+    // Issue updated JWT session token
     const freshToken = await createSessionToken({
       userId: updated.id,
       role: updated.role,
@@ -69,6 +67,17 @@ export async function POST(req: NextRequest) {
       maxAge: SEVEN_DAYS,
       path: "/",
     });
+
+    // If password was updated, set persistent password cookie
+    if (body.password && typeof body.password === "string" && body.password.trim()) {
+      response.cookies.set(`terra_pwd_${updated.id}`, encodeURIComponent(body.password.trim()), {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: "lax",
+        maxAge: 365 * 24 * 60 * 60, // 1 year
+        path: "/",
+      });
+    }
 
     return response;
   } catch (error: any) {
