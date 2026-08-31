@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getUserByUsernameOrEmail } from "@/lib/server/db";
+import { getUserByUsernameOrEmail, DEFAULT_SEED_PASSWORD_HASH } from "@/lib/server/db";
 import { verifyPassword, createSessionToken } from "@/lib/server/auth";
 import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/server/rate-limit";
 
@@ -67,18 +67,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Verify Password (Bcrypt Hash, Cookie Override, or Seed Fallback)
-    let isValidPassword = await verifyPassword(password, user.passwordHash);
+    // 4. Verify Password (Bcrypt Hash, Cookie Override, or Initial Seed Fallback)
+    const customCookie = req.cookies.get(`terra_pwd_${user.id}`)?.value;
+    const hasCustomPassword = !!customCookie || user.passwordHash !== DEFAULT_SEED_PASSWORD_HASH;
 
-    if (!isValidPassword) {
-      const customCookie = req.cookies.get(`terra_pwd_${user.id}`)?.value;
-      if (customCookie && password.trim() === decodeURIComponent(customCookie).trim()) {
+    let isValidPassword = false;
+
+    if (customCookie) {
+      if (password.trim() === decodeURIComponent(customCookie).trim()) {
         isValidPassword = true;
       }
     }
 
-    if (!isValidPassword && (password === "terra@2026" || password.trim() === user.username.toLowerCase())) {
-      isValidPassword = true;
+    if (!isValidPassword && user.passwordHash) {
+      isValidPassword = await verifyPassword(password, user.passwordHash);
+    }
+
+    // Only allow initial default seed password if user has NEVER changed their password
+    if (!isValidPassword && !hasCustomPassword) {
+      if (password === "terra@2026" || password.trim() === user.username.toLowerCase()) {
+        isValidPassword = true;
+      }
     }
 
     if (!isValidPassword) {

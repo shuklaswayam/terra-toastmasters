@@ -4,9 +4,7 @@ export interface ServerUser extends User {
   passwordHash: string;
 }
 
-// Pre-computed bcrypt hash for seed club initial password "terra@2026"
-// Generated using bcrypt (salt rounds: 10)
-const DEFAULT_SEED_PASSWORD_HASH = "$2b$10$0o.BvVKzQ6DBIoSXc.E4meqTo1OKnu0fF7T3bq4C.RckQmiPvpQo.";
+export const DEFAULT_SEED_PASSWORD_HASH = "$2b$10$0o.BvVKzQ6DBIoSXc.E4meqTo1OKnu0fF7T3bq4C.RckQmiPvpQo.";
 
 // Server-side user database
 const serverUsers: ServerUser[] = [

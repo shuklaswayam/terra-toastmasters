@@ -935,10 +935,12 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         }
       } catch {}
 
-      const isValidPassword =
-        (customPass && password.trim() === customPass.trim()) ||
-        password === "terra@2026" ||
-        password.trim() === found.username.toLowerCase();
+      let isValidPassword = false;
+      if (customPass) {
+        isValidPassword = password.trim() === customPass.trim();
+      } else {
+        isValidPassword = password === "terra@2026" || password.trim() === found.username.toLowerCase();
+      }
 
       if (!isValidPassword) {
         return { success: false, error: "Incorrect password. Please verify your credentials." };

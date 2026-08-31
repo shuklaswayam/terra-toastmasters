@@ -22,6 +22,8 @@ import {
   Mail,
   Phone,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { User, UserRole } from "@/lib/types";
 
@@ -40,6 +42,8 @@ export default function AdminMemberManagementPage() {
   // Search & Filter
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [showPasswords, setShowPasswords] = useState<{ [userId: string]: boolean }>({});
+  const [revealAll, setRevealAll] = useState(false);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -142,9 +146,21 @@ export default function AdminMemberManagementPage() {
     setDeletingUser(null);
   };
 
+  // Helper to retrieve active password for any member
+  const getMemberPassword = (user: User): string => {
+    if (typeof window !== "undefined") {
+      try {
+        const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+        if (savedPasses[user.id]) return savedPasses[user.id];
+      } catch {}
+    }
+    return user.password || "terra@2026";
+  };
+
   // 1-Click Copy Login Credentials to clipboard
   const copyCredentials = (user: User) => {
-    const text = `🌿 Terra Toastmasters — Login Credentials\n\nName: ${user.name}\nUsername: ${user.username}\nPassword: ${user.password || "terra@2026"}\nPortal: http://localhost:3000/auth/login\n\nPlease log in and keep your credentials safe.`;
+    const activePass = getMemberPassword(user);
+    const text = `🌿 Terra Toastmasters — Login Credentials\n\nName: ${user.name}\nUsername: ${user.username}\nPassword: ${activePass}\nPortal: http://localhost:3000/auth/login\n\nPlease log in and keep your credentials safe.`;
     navigator.clipboard.writeText(text);
     setCopiedUserId(user.id);
     setTimeout(() => setCopiedUserId(null), 2500);
@@ -237,7 +253,25 @@ export default function AdminMemberManagementPage() {
           />
         </div>
 
-        <div className="flex gap-2 sm:col-span-2 justify-end">
+        <div className="flex flex-wrap gap-2 sm:col-span-2 justify-end items-center">
+          <button
+            type="button"
+            onClick={() => setRevealAll(!revealAll)}
+            className="px-3 py-2 rounded-xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] text-xs font-semibold text-terra-text-secondary hover:text-terra-text-primary flex items-center gap-1.5 transition-all shadow-xs"
+          >
+            {revealAll ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5 text-terra-amber" />
+                <span>Hide Passwords</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 text-terra-amber" />
+                <span>Reveal Passwords</span>
+              </>
+            )}
+          </button>
+
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -304,8 +338,34 @@ export default function AdminMemberManagementPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 self-end sm:self-center">
+              {/* Action Buttons & Password Display */}
+              <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+                {/* Visible Password Badge for Admin */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs">
+                  <Key className="w-3 h-3 text-terra-amber shrink-0" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-terra-text-tertiary">Pass:</span>
+                  <span className="font-mono text-[11px] font-semibold text-terra-text-primary select-all">
+                    {revealAll || showPasswords[member.id] ? getMemberPassword(member) : "••••••••"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        [member.id]: !prev[member.id],
+                      }))
+                    }
+                    className="p-0.5 text-terra-text-tertiary hover:text-terra-text-primary transition-colors ml-0.5"
+                    title={showPasswords[member.id] || revealAll ? "Hide password" : "Show password"}
+                  >
+                    {revealAll || showPasswords[member.id] ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+
                 {/* 1-Click Copy Credentials */}
                 <button
                   onClick={() => copyCredentials(member)}
@@ -320,7 +380,7 @@ export default function AdminMemberManagementPage() {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Credentials</span>
+                      <span>Copy</span>
                     </>
                   )}
                 </button>
@@ -340,7 +400,7 @@ export default function AdminMemberManagementPage() {
                     setEditRolesCompleted(member.rolesCompleted || 0);
                     setEditRole(member.role);
                     setEditExecutiveTitle(member.executiveTitle || "");
-                    setEditPassword(member.password || "");
+                    setEditPassword(getMemberPassword(member));
                   }}
                   className="p-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-terra-text-secondary hover:text-terra-text-primary transition-colors"
                   title="Edit Member Profile & Access"
