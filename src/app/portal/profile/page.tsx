@@ -21,6 +21,7 @@ import {
   Camera,
   Hash,
   Share2,
+  Key,
 } from "lucide-react";
 import { SpeechRecord } from "@/lib/types";
 
@@ -42,12 +43,17 @@ import { memberProfileSchema, speechRecordSchema, sanitizeText } from "@/lib/val
 import { AlertCircle } from "lucide-react";
 
 export default function MemberProfilePage() {
-  const { currentUser, speechRecords, updateProfile, addSpeechRecord, deleteSpeechRecord } =
+  const { currentUser, speechRecords, updateProfile, resetPassword, addSpeechRecord, deleteSpeechRecord } =
     useTerraStore();
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const [showAddSpeechModal, setShowAddSpeechModal] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
   const [speechError, setSpeechError] = useState<string | null>(null);
 
   // Edit Profile Form State
@@ -132,11 +138,41 @@ export default function MemberProfilePage() {
         return;
       }
       updates.password = editPassword.trim();
+      await resetPassword(currentUser.username, editPassword.trim());
     }
 
     await updateProfile(updates);
     setShowEditModal(false);
     setEditPassword("");
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(null);
+
+    if (newPasswordInput.trim().length < 6) {
+      setResetError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPasswordInput.trim() !== confirmPasswordInput.trim()) {
+      setResetError("Passwords do not match.");
+      return;
+    }
+
+    const res = await resetPassword(currentUser.username, newPasswordInput.trim());
+    if (res.success) {
+      setResetSuccess("Password reset successfully! Use this password for your next login.");
+      setTimeout(() => {
+        setShowResetModal(false);
+        setNewPasswordInput("");
+        setConfirmPasswordInput("");
+        setResetSuccess(null);
+      }, 1800);
+    } else {
+      setResetError(res.error || "Failed to reset password.");
+    }
   };
 
   const handleCreateSpeechSubmit = (e: React.FormEvent) => {
@@ -254,13 +290,28 @@ export default function MemberProfilePage() {
             </div>
           </div>
 
-          <button
-            onClick={handleOpenEdit}
-            className="px-4 py-2 rounded-2xl bg-[#18181B] dark:bg-white text-white dark:text-black font-semibold text-xs hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 shadow-sm shrink-0"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>Edit Profile</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setResetError(null);
+                setResetSuccess(null);
+                setNewPasswordInput("");
+                setConfirmPasswordInput("");
+                setShowResetModal(true);
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] text-terra-text-primary font-semibold text-xs transition-all flex items-center gap-1.5"
+            >
+              <Key className="w-3.5 h-3.5 text-terra-amber" />
+              <span>Reset Password</span>
+            </button>
+            <button
+              onClick={handleOpenEdit}
+              className="px-4 py-2 rounded-2xl bg-[#18181B] dark:bg-white text-white dark:text-black font-semibold text-xs hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit Profile</span>
+            </button>
+          </div>
         </div>
 
         {/* Aggregate Stats Bar */}
@@ -738,6 +789,86 @@ export default function MemberProfilePage() {
                   className="w-1/2 py-2 rounded-xl bg-terra-amber text-white font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm"
                 >
                   Archive Speech
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RESET PASSWORD MODAL */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-terra-amber/10 text-terra-amber flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base">Reset Account Password</h3>
+                  <p className="text-[11px] text-terra-text-secondary">Update login password for {currentUser.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowResetModal(false)}>
+                <X className="w-4 h-4 text-terra-text-tertiary" />
+              </button>
+            </div>
+
+            {resetError && (
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1 text-left">
+                <label className="font-semibold text-terra-text-secondary">New Password *</label>
+                <input
+                  type="password"
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Enter at least 6 characters"
+                  required
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1 text-left">
+                <label className="font-semibold text-terra-text-secondary">Confirm New Password *</label>
+                <input
+                  type="password"
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  placeholder="Re-enter your new password"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] text-xs focus:outline-none focus:ring-2 focus:ring-terra-amber/40 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] font-semibold hover:bg-black/[0.08]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-terra-amber text-white font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Update Password</span>
                 </button>
               </div>
             </form>

@@ -607,6 +607,7 @@ interface TerraStoreContextType {
   }) => Promise<User>;
   updateMember: (userId: string, updates: Partial<User> & { password?: string }) => Promise<boolean>;
   updateProfile: (updates: Partial<User> & { password?: string }) => Promise<boolean>;
+  resetPassword: (usernameOrEmail: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   deleteMember: (userId: string) => Promise<boolean>;
   generateCredentials: (name: string) => { username: string; password: string };
   addSpeechRecord: (speechData: Omit<SpeechRecord, "id">) => SpeechRecord;
@@ -1138,6 +1139,55 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     };
     setNotifications((prev) => [notif, ...prev]);
     return true;
+  };
+
+  // Reset Password for any user
+  const resetPassword = async (usernameOrEmail: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    const cleanInput = usernameOrEmail.trim().toLowerCase();
+    const found = users.find(
+      (u) => u.username.toLowerCase() === cleanInput || u.email.toLowerCase() === cleanInput
+    );
+
+    if (found) {
+      try {
+        if (typeof window !== "undefined") {
+          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
+          savedPasses[found.id] = newPassword.trim();
+          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
+        }
+      } catch {}
+    }
+
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usernameOrEmail, newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.error || "Failed to reset password." };
+      }
+
+      const notif: InAppNotification = {
+        id: `notif-${Date.now()}`,
+        title: "Password Reset",
+        message: "Password has been updated successfully. Please use it for future sign-ins.",
+        type: "success",
+        timestamp: "Just now",
+        isRead: false,
+      };
+      setNotifications((prev) => [notif, ...prev]);
+
+      return { success: true };
+    } catch {
+      if (found) {
+        return { success: true };
+      }
+      return { success: false, error: "Unable to connect to password reset service." };
+    }
   };
 
   // Delete Member (Admin exclusive)
@@ -2080,6 +2130,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
         addMember,
         updateMember,
         updateProfile,
+        resetPassword,
         deleteMember,
         generateCredentials,
         addSpeechRecord,

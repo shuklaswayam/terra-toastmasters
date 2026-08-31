@@ -32,6 +32,7 @@ export default function AdminMemberManagementPage() {
     users,
     addMember,
     updateMember,
+    resetPassword,
     deleteMember,
     generateCredentials,
   } = useTerraStore();
@@ -127,6 +128,7 @@ export default function AdminMemberManagementPage() {
     };
     if (editPassword.trim()) {
       updates.password = editPassword.trim();
+      await resetPassword(editingUser.username, editPassword.trim());
     }
 
     await updateMember(editingUser.id, updates);
