@@ -67,25 +67,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Verify Password (Bcrypt Hash, Cookie Override, or Initial Seed Fallback)
-    const customCookie = req.cookies.get(`terra_pwd_${user.id}`)?.value;
-    const hasCustomPassword = !!customCookie || user.passwordHash !== DEFAULT_SEED_PASSWORD_HASH;
-
+    // 4. Secure Bcrypt Password Hash Verification
     let isValidPassword = false;
 
-    if (customCookie) {
-      if (password.trim() === decodeURIComponent(customCookie).trim()) {
-        isValidPassword = true;
-      }
-    }
-
-    if (!isValidPassword && user.passwordHash) {
+    if (user.passwordHash) {
       isValidPassword = await verifyPassword(password, user.passwordHash);
     }
 
     // Only allow initial default seed password if user has NEVER changed their password
-    if (!isValidPassword && !hasCustomPassword) {
-      if (password === "terra@2026" || password.trim() === user.username.toLowerCase()) {
+    if (!isValidPassword && user.passwordHash === DEFAULT_SEED_PASSWORD_HASH) {
+      if (password === "terra@2026") {
         isValidPassword = true;
       }
     }
@@ -153,6 +144,9 @@ export async function POST(req: NextRequest) {
       maxAge: SEVEN_DAYS,
       path: "/",
     });
+
+    // Clean up any legacy plaintext cookies if they exist
+    response.cookies.delete(`terra_pwd_${user.id}`);
 
     return response;
   } catch (error: any) {

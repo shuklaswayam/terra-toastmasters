@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update password in Supabase and server DB
+    // Update password hash in Supabase and server DB via Bcrypt
     const updated = await updateServerUser(user.id, { password: newPassword });
 
     if (!updated) {
@@ -69,15 +69,8 @@ export async function POST(req: NextRequest) {
       user: updated,
     });
 
-    // Set persistent password cookie
-    const isProduction = process.env.NODE_ENV === "production";
-    response.cookies.set(`terra_pwd_${user.id}`, encodeURIComponent(newPassword), {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax",
-      maxAge: 365 * 24 * 60 * 60, // 1 year
-      path: "/",
-    });
+    // Delete any legacy plaintext cookies
+    response.cookies.delete(`terra_pwd_${user.id}`);
 
     return response;
   } catch (error: any) {

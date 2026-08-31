@@ -42,14 +42,18 @@ export default function AdminMemberManagementPage() {
   // Search & Filter
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [showPasswords, setShowPasswords] = useState<{ [userId: string]: boolean }>({});
-  const [revealAll, setRevealAll] = useState(false);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [resetSuccessData, setResetSuccessData] = useState<{
+    userName: string;
+    username: string;
+    tempPassword?: string;
+    message: string;
+  } | null>(null);
 
   // Form State for Add Member
   const [addName, setAddName] = useState("");
@@ -90,18 +94,29 @@ export default function AdminMemberManagementPage() {
     e.preventDefault();
     if (!addName.trim()) return;
 
-    await addMember({
+    const { username: genUser, password: genPass } = generateCredentials(addName);
+    const finalUsername = addUsername.trim() || genUser;
+    const finalPassword = addPassword.trim() || genPass;
+
+    const newMember = await addMember({
       name: addName.trim(),
-      email: addEmail || `${addUsername || "member"}@terra.club`,
+      email: addEmail.trim() || `${finalUsername}@terra.club`,
       role: addRole,
       executiveTitle: addRole !== "member" ? addExecutiveTitle : undefined,
-      phone: addPhone,
-      bio: addBio || "",
-      username: addUsername,
-      password: addPassword,
+      phone: addPhone.trim(),
+      bio: addBio.trim() || "",
+      username: finalUsername,
+      password: finalPassword,
     });
 
     setShowAddModal(false);
+    setResetSuccessData({
+      userName: newMember.name,
+      username: newMember.username,
+      tempPassword: finalPassword,
+      message: `New member account created for ${newMember.name}. Please copy and provide these credentials to the member.`,
+    });
+
     // Reset
     setAddName("");
     setAddEmail("");
@@ -133,6 +148,12 @@ export default function AdminMemberManagementPage() {
     if (editPassword.trim()) {
       updates.password = editPassword.trim();
       await resetPassword(editingUser.username, editPassword.trim());
+      setResetSuccessData({
+        userName: editingUser.name,
+        username: editingUser.username,
+        tempPassword: editPassword.trim(),
+        message: `Password has been updated for ${editingUser.name}.`,
+      });
     }
 
     await updateMember(editingUser.id, updates);
@@ -146,21 +167,23 @@ export default function AdminMemberManagementPage() {
     setDeletingUser(null);
   };
 
-  // Helper to retrieve active password for any member
-  const getMemberPassword = (user: User): string => {
-    if (typeof window !== "undefined") {
-      try {
-        const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-        if (savedPasses[user.id]) return savedPasses[user.id];
-      } catch {}
+  const handleQuickResetPassword = async (member: User) => {
+    const tempPassword = `Terra#${Math.floor(1000 + Math.random() * 9000)}`;
+    const res = await resetPassword(member.username, tempPassword);
+    if (res.success) {
+      setResetSuccessData({
+        userName: member.name,
+        username: member.username,
+        tempPassword,
+        message: `Temporary password created for ${member.name}. Share this with the member to allow them to log in and set their personal password.`,
+      });
     }
-    return user.password || "terra@2026";
   };
 
   // 1-Click Copy Login Credentials to clipboard
-  const copyCredentials = (user: User) => {
-    const activePass = getMemberPassword(user);
-    const text = `🌿 Terra Toastmasters — Login Credentials\n\nName: ${user.name}\nUsername: ${user.username}\nPassword: ${activePass}\nPortal: http://localhost:3000/auth/login\n\nPlease log in and keep your credentials safe.`;
+  const copyCredentials = (user: User, customPass?: string) => {
+    const activePass = customPass || user.password || "terra@2026";
+    const text = `🌿 Terra Toastmasters — Login Credentials\n\nName: ${user.name}\nUsername: ${user.username}\nTemporary Password: ${activePass}\nPortal: https://terra-toastmasters.vercel.app/auth/login\n\nPlease log in and update your password under your profile.`;
     navigator.clipboard.writeText(text);
     setCopiedUserId(user.id);
     setTimeout(() => setCopiedUserId(null), 2500);
@@ -254,24 +277,6 @@ export default function AdminMemberManagementPage() {
         </div>
 
         <div className="flex flex-wrap gap-2 sm:col-span-2 justify-end items-center">
-          <button
-            type="button"
-            onClick={() => setRevealAll(!revealAll)}
-            className="px-3 py-2 rounded-xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] text-xs font-semibold text-terra-text-secondary hover:text-terra-text-primary flex items-center gap-1.5 transition-all shadow-xs"
-          >
-            {revealAll ? (
-              <>
-                <EyeOff className="w-3.5 h-3.5 text-terra-amber" />
-                <span>Hide Passwords</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-3.5 h-3.5 text-terra-amber" />
-                <span>Reveal Passwords</span>
-              </>
-            )}
-          </button>
-
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -338,33 +343,17 @@ export default function AdminMemberManagementPage() {
                 </div>
               </div>
 
-              {/* Action Buttons & Password Display */}
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
-                {/* Visible Password Badge for Admin */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] text-xs">
-                  <Key className="w-3 h-3 text-terra-amber shrink-0" />
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-terra-text-tertiary">Pass:</span>
-                  <span className="font-mono text-[11px] font-semibold text-terra-text-primary select-all">
-                    {revealAll || showPasswords[member.id] ? getMemberPassword(member) : "••••••••"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowPasswords((prev) => ({
-                        ...prev,
-                        [member.id]: !prev[member.id],
-                      }))
-                    }
-                    className="p-0.5 text-terra-text-tertiary hover:text-terra-text-primary transition-colors ml-0.5"
-                    title={showPasswords[member.id] || revealAll ? "Hide password" : "Show password"}
-                  >
-                    {revealAll || showPasswords[member.id] ? (
-                      <EyeOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
+                {/* Reset Password Action */}
+                <button
+                  onClick={() => handleQuickResetPassword(member)}
+                  title="Generate Temporary Password"
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold transition-all flex items-center gap-1.5"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Reset Password</span>
+                </button>
 
                 {/* 1-Click Copy Credentials */}
                 <button
@@ -385,7 +374,7 @@ export default function AdminMemberManagementPage() {
                   )}
                 </button>
 
-                {/* Edit Role & Credentials */}
+                {/* Edit Role & Details */}
                 <button
                   onClick={() => {
                     setEditingUser(member);
@@ -400,7 +389,7 @@ export default function AdminMemberManagementPage() {
                     setEditRolesCompleted(member.rolesCompleted || 0);
                     setEditRole(member.role);
                     setEditExecutiveTitle(member.executiveTitle || "");
-                    setEditPassword(getMemberPassword(member));
+                    setEditPassword("");
                   }}
                   className="p-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] text-terra-text-secondary hover:text-terra-text-primary transition-colors"
                   title="Edit Member Profile & Access"
@@ -812,6 +801,71 @@ export default function AdminMemberManagementPage() {
                 className="w-1/2 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 active:scale-95 transition-all shadow-sm"
               >
                 Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREDENTIALS ISSUED / RESET SUCCESS MODAL */}
+      {resetSuccessData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#161618] border border-black/[0.08] dark:border-white/[0.08] shadow-2xl p-6 space-y-4 text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base">Credentials Issued</h3>
+                  <p className="text-[11px] text-terra-text-secondary">{resetSuccessData.userName}</p>
+                </div>
+              </div>
+              <button onClick={() => setResetSuccessData(null)}>
+                <X className="w-4 h-4 text-terra-text-tertiary" />
+              </button>
+            </div>
+
+            <p className="text-xs text-terra-text-secondary leading-relaxed">
+              {resetSuccessData.message}
+            </p>
+
+            <div className="p-4 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-terra-text-tertiary">Username:</span>
+                <span className="font-mono font-semibold text-terra-text-primary">
+                  @{resetSuccessData.username}
+                </span>
+              </div>
+              {resetSuccessData.tempPassword && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-terra-text-tertiary">Temporary Password:</span>
+                  <span className="font-mono font-bold text-terra-amber select-all">
+                    {resetSuccessData.tempPassword}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setResetSuccessData(null)}
+                className="w-1/2 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-xs font-semibold hover:bg-black/[0.08]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = `🌿 Terra Toastmasters — Login Credentials\n\nName: ${resetSuccessData.userName}\nUsername: ${resetSuccessData.username}\nTemporary Password: ${resetSuccessData.tempPassword || "terra@2026"}\nPortal: https://terra-toastmasters.vercel.app/auth/login\n\nPlease log in and update your password under your profile.`;
+                  navigator.clipboard.writeText(text);
+                  setResetSuccessData(null);
+                }}
+                className="w-1/2 py-2.5 rounded-xl bg-[#18181B] dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy & Close</span>
               </button>
             </div>
           </div>

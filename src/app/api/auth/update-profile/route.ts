@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: updated,
-      message: "Profile and credentials updated successfully.",
+      message: "Profile updated successfully.",
     });
 
     const isProduction = process.env.NODE_ENV === "production";
@@ -68,16 +68,8 @@ export async function POST(req: NextRequest) {
       path: "/",
     });
 
-    // If password was updated, set persistent password cookie
-    if (body.password && typeof body.password === "string" && body.password.trim()) {
-      response.cookies.set(`terra_pwd_${updated.id}`, encodeURIComponent(body.password.trim()), {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: "lax",
-        maxAge: 365 * 24 * 60 * 60, // 1 year
-        path: "/",
-      });
-    }
+    // Delete any legacy plaintext cookies
+    response.cookies.delete(`terra_pwd_${updated.id}`);
 
     return response;
   } catch (error: any) {

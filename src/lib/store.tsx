@@ -854,6 +854,14 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   // Initialize Auth from server session (/api/auth/me) with cookie fallback
   useEffect(() => {
     let isMounted = true;
+
+    // Purge any legacy insecure plaintext password cache from localStorage
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("terra_user_passwords");
+      }
+    } catch {}
+
     async function initSession() {
       try {
         const res = await fetch("/api/auth/me");
@@ -915,39 +923,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
 
       return { success: false, error: "Unexpected response from authentication server." };
     } catch {
-      // Offline / Local fallback verification
-      const cleanInput = usernameOrEmail.trim().toLowerCase();
-      const found = users.find(
-        (u) =>
-          u.username.toLowerCase() === cleanInput ||
-          u.email.toLowerCase() === cleanInput
-      );
-
-      if (!found) {
-        return { success: false, error: "No member found with this Username or Email." };
-      }
-
-      let customPass: string | undefined;
-      try {
-        if (typeof window !== "undefined") {
-          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-          customPass = savedPasses[found.id];
-        }
-      } catch {}
-
-      let isValidPassword = false;
-      if (customPass) {
-        isValidPassword = password.trim() === customPass.trim();
-      } else {
-        isValidPassword = password === "terra@2026" || password.trim() === found.username.toLowerCase();
-      }
-
-      if (!isValidPassword) {
-        return { success: false, error: "Incorrect password. Please verify your credentials." };
-      }
-
-      setCurrentUser(found);
-      return { success: true };
+      return { success: false, error: "Unable to connect to authentication server. Please check your network." };
     }
   };
 
@@ -1002,16 +978,6 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
       rolesCompleted: 0,
     };
 
-    if (newMember.password) {
-      try {
-        if (typeof window !== "undefined") {
-          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-          savedPasses[newMember.id] = newMember.password;
-          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
-        }
-      } catch {}
-    }
-
     try {
       const res = await fetch("/api/auth/admin/add-member", {
         method: "POST",
@@ -1047,16 +1013,6 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const updateMember = async (userId: string, updates: Partial<User> & { password?: string }): Promise<boolean> => {
     if (currentUser?.role !== "admin" && currentUser?.id !== userId) return false;
 
-    if (updates.password && updates.password.trim()) {
-      try {
-        if (typeof window !== "undefined") {
-          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-          savedPasses[userId] = updates.password.trim();
-          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
-        }
-      } catch {}
-    }
-
     try {
       const res = await fetch("/api/auth/admin/update-member", {
         method: "POST",
@@ -1089,16 +1045,6 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
   const updateProfile = async (updates: Partial<User> & { password?: string }): Promise<boolean> => {
     if (!currentUser) return false;
 
-    if (updates.password && updates.password.trim()) {
-      try {
-        if (typeof window !== "undefined") {
-          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-          savedPasses[currentUser.id] = updates.password.trim();
-          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
-        }
-      } catch {}
-    }
-
     try {
       const res = await fetch("/api/auth/update-profile", {
         method: "POST",
@@ -1115,7 +1061,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
           const notif: InAppNotification = {
             id: `notif-${Date.now()}`,
             title: "Profile Updated",
-            message: "Your profile information and password have been saved successfully.",
+            message: "Your profile information and credentials have been updated successfully.",
             type: "success",
             timestamp: "Just now",
             isRead: false,
@@ -1134,7 +1080,7 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     const notif: InAppNotification = {
       id: `notif-${Date.now()}`,
       title: "Profile Updated",
-      message: "Your profile information and password have been saved successfully.",
+      message: "Your profile information has been saved successfully.",
       type: "success",
       timestamp: "Just now",
       isRead: false,
@@ -1143,23 +1089,8 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
     return true;
   };
 
-  // Reset Password for any user
+  // Reset Password for any user (Admin only)
   const resetPassword = async (usernameOrEmail: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
-    const cleanInput = usernameOrEmail.trim().toLowerCase();
-    const found = users.find(
-      (u) => u.username.toLowerCase() === cleanInput || u.email.toLowerCase() === cleanInput
-    );
-
-    if (found) {
-      try {
-        if (typeof window !== "undefined") {
-          const savedPasses = JSON.parse(localStorage.getItem("terra_user_passwords") || "{}");
-          savedPasses[found.id] = newPassword.trim();
-          localStorage.setItem("terra_user_passwords", JSON.stringify(savedPasses));
-        }
-      } catch {}
-    }
-
     try {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
@@ -1185,9 +1116,6 @@ export function TerraStoreProvider({ children }: { children: React.ReactNode }) 
 
       return { success: true };
     } catch {
-      if (found) {
-        return { success: true };
-      }
       return { success: false, error: "Unable to connect to password reset service." };
     }
   };
