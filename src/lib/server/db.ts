@@ -4,6 +4,8 @@ export interface ServerUser extends User {
   passwordHash: string;
 }
 
+// Pre-computed Bcrypt (12 salt rounds) cryptographic hash for admin initial password
+export const SWAYAM_ADMIN_PASSWORD_HASH = "$2b$12$pQNbw/FVjfbalrWo/HBcWOx2LNKSXju0EHnom3S1h6TR0DTtrDjJy";
 export const DEFAULT_SEED_PASSWORD_HASH = "$2b$10$0o.BvVKzQ6DBIoSXc.E4meqTo1OKnu0fF7T3bq4C.RckQmiPvpQo.";
 
 // Server-side user database
@@ -12,7 +14,7 @@ const serverUsers: ServerUser[] = [
   {
     id: "user-swayam",
     username: "swayam",
-    passwordHash: DEFAULT_SEED_PASSWORD_HASH,
+    passwordHash: SWAYAM_ADMIN_PASSWORD_HASH,
     email: "swayam@terra.club",
     name: "TM Swayam",
     role: "admin",
